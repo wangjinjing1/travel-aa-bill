@@ -1,48 +1,4 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: travel-aa-bill-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      TZ: Asia/Shanghai
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --default-time-zone=+08:00
-    ports:
-      - "${MYSQL_HOST_PORT}:3306"
-    volumes:
-      - travel-aa-bill-mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    container_name: travel-aa-bill-redis
-    restart: unless-stopped
-    command: >
-      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
-        redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
-      else
-        redis-server --appendonly yes;
-      fi'
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    ports:
-      - "${REDIS_HOST_PORT}:6379"
-    volumes:
-      - travel-aa-bill-redis-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
   backend:
     build:
       context: .
@@ -50,20 +6,7 @@ services:
     image: travel-aa-bill-backend:latest
     container_name: travel-aa-bill-backend
     restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     env_file:
       - .env
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
-
-volumes:
-  travel-aa-bill-mysql-data:
-  travel-aa-bill-redis-data:

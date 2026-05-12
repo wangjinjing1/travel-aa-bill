@@ -16,13 +16,13 @@ http://localhost:24975/
 
 ## Docker deployment
 
-Run from the repository root. Compose reads the root `.env` and starts MySQL, Redis, and the backend:
+Prepare external MySQL and Redis first, then update the root `.env`. Run from the repository root:
 
 ```bash
 docker compose up -d --build
 ```
 
-The backend image is `travel-aa-bill-backend:latest`, and the container name is `travel-aa-bill-backend`.
+Compose starts only the backend service. The backend image is `travel-aa-bill-backend:latest`, and the container name is `travel-aa-bill-backend`.
 
 API:
 
@@ -30,9 +30,7 @@ API:
 http://localhost:24975/api
 ```
 
-MySQL is exposed on host port `24976`, Redis is exposed on host port `24977`, and the application container connects to the Docker service names `mysql` and `redis`.
-
-The same root `.env` also works for running `TravelBillApplication` directly from IDEA. In Docker Compose, the backend service overrides only the internal MySQL and Redis host values.
+MySQL and Redis are external services configured in the root `.env`.
 
 The tables are created and migrated automatically on startup.
 

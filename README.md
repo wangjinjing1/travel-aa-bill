@@ -7,10 +7,21 @@
 - `travel-bill-backend`: Spring Boot 后端和 Web 前端
 - `travel-bill-backend/src/main/resources/static`: 手机网页端和 PC 端页面
 - `travel-bill-backend/src/main/resources/schema.sql`: 数据库结构参考
-- `.env`: Docker Compose 和本地 IDEA 启动共用的配置
-- `docker-compose.yml`: MySQL、Redis、后端一键启动
+- `.env`: 后端运行配置
+- `docker-compose.yml`: 只启动后端服务，MySQL 和 Redis 使用外部服务
 
 ## 启动
+
+先准备外部 MySQL 和 Redis，并按实际地址修改 `.env`：
+
+```properties
+SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/travel_bill?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+SPRING_DATASOURCE_USERNAME=root
+SPRING_DATASOURCE_PASSWORD=root
+SPRING_DATA_REDIS_HOST=127.0.0.1
+SPRING_DATA_REDIS_PORT=6379
+SPRING_DATA_REDIS_PASSWORD=
+```
 
 根目录执行：
 
@@ -23,11 +34,6 @@ docker compose up -d --build
 ```text
 http://localhost:24975/
 ```
-
-同一份 `.env` 同时支持两种场景：
-
-- IDEA 直接启动 `TravelBillApplication`：后端读取 `.env`，连接 `127.0.0.1:24976` 的 MySQL 和 `127.0.0.1:24977` 的 Redis。
-- Docker Compose 启动：Compose 读取 `.env`，后端容器会覆盖数据库和 Redis 地址为 Docker 网络内的 `mysql:3306` 和 `redis:6379`。
 
 默认管理员账号密码在 `.env` 的 `APP_ADMIN_USERNAME` 和 `APP_ADMIN_PASSWORD` 中配置。应用启动时只会在数据库中不存在该管理员账号时创建；如果已存在，不会覆盖数据库里的密码。
 
