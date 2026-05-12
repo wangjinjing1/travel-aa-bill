@@ -85,9 +85,7 @@ public class ApiGuardFilter extends OncePerRequestFilter {
         if (!uri.startsWith("/api/")) {
             return false;
         }
-        if (uri.equals("/api/auth/login")
-                || uri.equals("/api/auth/register")
-                || uri.equals("/api/auth/wechat-login")) {
+        if (uri.equals("/api/auth/login") || uri.equals("/api/auth/register")) {
             return false;
         }
         return !requiresOptionalAuth(request);

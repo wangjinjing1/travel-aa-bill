@@ -34,10 +34,6 @@ app:
     token-secret: ${APP_AUTH_TOKEN_SECRET:change-this-secret-before-production}
     token-ttl-hours: ${APP_AUTH_TOKEN_TTL_HOURS:168}
     password-salt: ${APP_AUTH_PASSWORD_SALT:travel-aa-bill-fixed-password-salt}
-  wechat:
-    mock-login: ${APP_WECHAT_MOCK_LOGIN:false}
-    app-id: ${APP_WECHAT_APP_ID:app-id}
-    app-secret: ${APP_WECHAT_APP_SECRET:app-secret}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:*}
   security:

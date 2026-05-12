@@ -18,20 +18,16 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         addAvatarUrlColumnIfMissing();
-        addOpenIdColumnIfMissing();
         addUsernameColumnIfMissing();
         addPasswordHashColumnIfMissing();
         addRoleColumnIfMissing();
-        relaxOpenIdNullabilityIfNeeded();
         fillMissingAccountColumns();
-        normalizeBlankOpenIds();
         addPlanMemberApprovalColumnsIfMissing();
         addRegistrationInviteTableIfMissing();
         addTravelPlanImageTableIfMissing();
         addIpBlacklistTableIfMissing();
         dropLegacyIpAccessCounterTableIfPresent();
         dropLegacyDisplayNameIndexIfPresent();
-        addOpenIdIndexIfMissing();
         addUsernameIndexIfMissing();
     }
 
@@ -39,24 +35,8 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         addColumnIfMissing("app_user", "avatar_url", "ALTER TABLE app_user ADD COLUMN avatar_url VARCHAR(500) NULL AFTER display_name");
     }
 
-    private void addOpenIdColumnIfMissing() {
-        Integer count = jdbcTemplate.queryForObject(
-                """
-                SELECT COUNT(*)
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'app_user'
-                  AND COLUMN_NAME = 'open_id'
-                """,
-                Integer.class
-        );
-        if (count != null && count == 0) {
-            jdbcTemplate.execute("ALTER TABLE app_user ADD COLUMN open_id VARCHAR(64) NULL AFTER id");
-        }
-    }
-
     private void addUsernameColumnIfMissing() {
-        addColumnIfMissing("app_user", "username", "ALTER TABLE app_user ADD COLUMN username VARCHAR(80) NULL AFTER open_id");
+        addColumnIfMissing("app_user", "username", "ALTER TABLE app_user ADD COLUMN username VARCHAR(80) NULL AFTER id");
     }
 
     private void addPasswordHashColumnIfMissing() {
@@ -65,26 +45,6 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
 
     private void addRoleColumnIfMissing() {
         addColumnIfMissing("app_user", "role", "ALTER TABLE app_user ADD COLUMN role VARCHAR(20) NULL AFTER password_hash");
-    }
-
-    private void relaxOpenIdNullabilityIfNeeded() {
-        String nullable = jdbcTemplate.queryForObject(
-                """
-                SELECT IS_NULLABLE
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'app_user'
-                  AND COLUMN_NAME = 'open_id'
-                """,
-                String.class
-        );
-        if ("NO".equalsIgnoreCase(nullable)) {
-            jdbcTemplate.execute("ALTER TABLE app_user MODIFY COLUMN open_id VARCHAR(64) NULL");
-        }
-    }
-
-    private void normalizeBlankOpenIds() {
-        jdbcTemplate.execute("UPDATE app_user SET open_id = NULL WHERE open_id = ''");
     }
 
     private void fillMissingAccountColumns() {
@@ -197,22 +157,6 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         );
         if (count != null && count > 0) {
             jdbcTemplate.execute("ALTER TABLE app_user DROP INDEX uk_app_user_display_name");
-        }
-    }
-
-    private void addOpenIdIndexIfMissing() {
-        Integer count = jdbcTemplate.queryForObject(
-                """
-                SELECT COUNT(*)
-                FROM information_schema.STATISTICS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'app_user'
-                  AND INDEX_NAME = 'uk_app_user_open_id'
-                """,
-                Integer.class
-        );
-        if (count != null && count == 0) {
-            jdbcTemplate.execute("ALTER TABLE app_user ADD UNIQUE INDEX uk_app_user_open_id (open_id)");
         }
     }
 

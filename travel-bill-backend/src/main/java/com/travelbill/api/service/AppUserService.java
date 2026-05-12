@@ -26,7 +26,7 @@ import java.util.UUID;
 
 @Service
 public class AppUserService {
-    private static final String DEFAULT_DISPLAY_NAME = "微信用户";
+    private static final String DEFAULT_DISPLAY_NAME = "用户";
 
     private final AppUserRepository userRepository;
     private final PlanMemberRepository planMemberRepository;
@@ -110,14 +110,6 @@ public class AppUserService {
         return user;
     }
 
-    @Transactional
-    public AppUser loginByOpenId(String openId, String displayName) {
-        String normalizedDisplayName = normalizeDisplayName(displayName);
-        return userRepository.findByOpenId(openId)
-                .map(this::preserveExistingProfileOnLogin)
-                .orElseGet(() -> bindLegacyUserOrCreate(openId, normalizedDisplayName));
-    }
-
     @Transactional(readOnly = true)
     public String displayNameOf(String userId) {
         return userRepository.findById(userId)
@@ -161,50 +153,6 @@ public class AppUserService {
 
         AppUser saved = changed ? userRepository.save(user) : user;
         return new UserProfile(saved.getId(), saved.getDisplayName(), saved.getAvatarUrl(), saved.getUsername(), saved.getRole());
-    }
-
-    private AppUser preserveExistingProfileOnLogin(AppUser user) {
-        boolean changed = false;
-        if (!StringUtils.hasText(user.getDisplayName())) {
-            user.setDisplayName(DEFAULT_DISPLAY_NAME);
-            changed = true;
-        }
-        if (!StringUtils.hasText(user.getUsername())) {
-            user.setUsername("wx_" + user.getOpenId());
-            changed = true;
-        }
-        if (!StringUtils.hasText(user.getPasswordHash())) {
-            user.setPasswordHash(passwordService.hash(UUID.randomUUID().toString()));
-            changed = true;
-        }
-        if (!StringUtils.hasText(user.getRole())) {
-            user.setRole("USER");
-            changed = true;
-        }
-        if (!changed) {
-            return user;
-        }
-        AppUser saved = userRepository.save(user);
-        syncDisplayNameAcrossPlans(saved.getId(), saved.getDisplayName());
-        return saved;
-    }
-
-    private AppUser bindLegacyUserOrCreate(String openId, String displayName) {
-        AppUser user = userRepository.findByDisplayName(displayName)
-                .filter(existing -> !StringUtils.hasText(existing.getOpenId()))
-                .orElseGet(AppUser::new);
-        user.setOpenId(openId);
-        user.setDisplayName(displayName);
-        if (!StringUtils.hasText(user.getUsername())) {
-            user.setUsername("wx_" + openId);
-        }
-        if (!StringUtils.hasText(user.getPasswordHash())) {
-            user.setPasswordHash(passwordService.hash(UUID.randomUUID().toString()));
-        }
-        if (!StringUtils.hasText(user.getRole())) {
-            user.setRole("USER");
-        }
-        return userRepository.save(user);
     }
 
     private AuthSession toAuthSession(AppUser user) {

@@ -11,16 +11,12 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "app_user", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_app_user_open_id", columnNames = "open_id"),
         @UniqueConstraint(name = "uk_app_user_username", columnNames = "username")
 })
 public class AppUser {
     @Id
     @Column(length = 80)
     private String id = "usr_" + UUID.randomUUID().toString().replace("-", "");
-
-    @Column(name = "open_id", length = 64)
-    private String openId;
 
     @Column(nullable = false, length = 80)
     private String username;
@@ -46,14 +42,6 @@ public class AppUser {
 
     public void setId(String id) {
         this.id = id;
-    }
-
-    public String getOpenId() {
-        return openId;
-    }
-
-    public void setOpenId(String openId) {
-        this.openId = openId;
     }
 
     public String getUsername() {

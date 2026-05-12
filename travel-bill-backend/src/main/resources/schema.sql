@@ -6,14 +6,12 @@ USE `travel_bill`;
 
 CREATE TABLE IF NOT EXISTS app_user (
   id VARCHAR(80) PRIMARY KEY,
-  open_id VARCHAR(64) NULL,
   username VARCHAR(80) NOT NULL,
   password_hash VARCHAR(128) NOT NULL,
   role VARCHAR(20) NOT NULL DEFAULT 'USER',
   display_name VARCHAR(80) NOT NULL,
   avatar_url VARCHAR(500) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_app_user_open_id (open_id),
   UNIQUE KEY uk_app_user_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

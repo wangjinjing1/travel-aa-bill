@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: travel-aa-bill-backend:latest
-    container_name: travel-aa-bill-backend
+    image: travel-aa-bill:latest
+    container_name: travel-aa-bill
     restart: unless-stopped
     env_file:
       - .env
