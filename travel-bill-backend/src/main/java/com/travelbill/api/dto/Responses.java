@@ -15,7 +15,25 @@ public final class Responses {
     public record UserProfile(
             String userId,
             String displayName,
-            String avatarUrl
+            String avatarUrl,
+            String username,
+            String role
+    ) {
+    }
+
+    public record AuthSession(
+            String userId,
+            String username,
+            String displayName,
+            String avatarUrl,
+            String role,
+            String token
+    ) {
+    }
+
+    public record InviteLink(
+            String token,
+            String url
     ) {
     }
 
@@ -37,6 +55,7 @@ public final class Responses {
             LocalDate startDate,
             LocalDate endDate,
             String description,
+            List<PlanImageView> images,
             String creatorId,
             String creatorName,
             String shareToken,
@@ -52,6 +71,14 @@ public final class Responses {
             List<MemberView> pendingMembers,
             List<ExpenseView> expenses,
             List<SettlementView> settlements
+    ) {
+    }
+
+    public record PlanImageView(
+            Long id,
+            String filename,
+            String contentType,
+            String url
     ) {
     }
 

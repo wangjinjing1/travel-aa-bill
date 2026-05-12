@@ -1,7 +1,9 @@
-server:
-  port: ${SERVER_PORT:24975}
-
 spring:
+  config:
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:.env[.properties]
+      - optional:classpath:.env[.properties]
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/travel_bill?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
     username: ${SPRING_DATASOURCE_USERNAME:root}
@@ -24,11 +26,14 @@ spring:
     init:
       mode: never
 
+server:
+  port: ${SERVER_PORT:24975}
+
 app:
   auth:
     token-secret: ${APP_AUTH_TOKEN_SECRET:change-this-secret-before-production}
     token-ttl-hours: ${APP_AUTH_TOKEN_TTL_HOURS:168}
-    static-token: ${APP_AUTH_STATIC_TOKEN:7f3a925e80f4c91a7b23d6e5f08a123c9b3d4e521f718293a3214b5c6d7e8f91012a3b4c5d6e7f8091a2b3c4dfd6f708192a3b4c5d6e7f8}
+    password-salt: ${APP_AUTH_PASSWORD_SALT:travel-aa-bill-fixed-password-salt}
   wechat:
     mock-login: ${APP_WECHAT_MOCK_LOGIN:false}
     app-id: ${APP_WECHAT_APP_ID:app-id}

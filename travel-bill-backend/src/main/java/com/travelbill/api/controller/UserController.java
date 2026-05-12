@@ -4,6 +4,7 @@ import com.travelbill.api.domain.AppUser;
 import com.travelbill.api.repository.PlanMemberRepository;
 import com.travelbill.api.repository.AppUserRepository;
 import com.travelbill.api.repository.TravelPlanRepository;
+import com.travelbill.api.service.PasswordService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -15,15 +16,18 @@ public class UserController {
     private final AppUserRepository userRepository;
     private final TravelPlanRepository planRepository;
     private final PlanMemberRepository memberRepository;
+    private final PasswordService passwordService;
 
     public UserController(
             AppUserRepository userRepository,
             TravelPlanRepository planRepository,
-            PlanMemberRepository memberRepository
+            PlanMemberRepository memberRepository,
+            PasswordService passwordService
     ) {
         this.userRepository = userRepository;
         this.planRepository = planRepository;
         this.memberRepository = memberRepository;
+        this.passwordService = passwordService;
     }
 
     @PostMapping("/identify")
@@ -33,6 +37,9 @@ public class UserController {
                 .orElseGet(() -> {
                     AppUser created = new AppUser();
                     existingUserId(displayName).ifPresent(created::setId);
+                    created.setUsername("legacy_" + created.getId());
+                    created.setPasswordHash(passwordService.hash(java.util.UUID.randomUUID().toString()));
+                    created.setRole("USER");
                     created.setDisplayName(displayName);
                     return userRepository.save(created);
                 });

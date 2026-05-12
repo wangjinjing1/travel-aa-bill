@@ -14,6 +14,31 @@ public final class Requests {
     private Requests() {
     }
 
+    public record PasswordLoginRequest(
+            @NotBlank(message = "请输入账号")
+            @Size(max = 80, message = "账号不能超过80个字")
+            String username,
+            @NotBlank(message = "请输入密码")
+            @Size(max = 120, message = "密码不能超过120个字")
+            String password
+    ) {
+    }
+
+    public record RegisterWithInviteRequest(
+            @NotBlank(message = "注册链接无效")
+            String inviteToken,
+            @NotBlank(message = "请输入账号")
+            @Size(max = 80, message = "账号不能超过80个字")
+            String username,
+            @NotBlank(message = "请输入密码")
+            @Size(max = 120, message = "密码不能超过120个字")
+            String password,
+            @NotBlank(message = "请输入昵称")
+            @Size(max = 80, message = "昵称不能超过80个字")
+            String displayName
+    ) {
+    }
+
     public record CreatePlanRequest(
             @NotBlank(message = "请输入旅游地点")
             @Size(max = 120, message = "旅游地点不能超过120个字")
@@ -25,7 +50,6 @@ public final class Requests {
             @NotBlank(message = "请输入旅游详细计划")
             @Size(max = 2000, message = "旅游详细计划不能超过2000个字")
             String description,
-            @NotBlank(message = "请输入创建人昵称")
             @Size(max = 80, message = "昵称不能超过80个字")
             String creatorName
     ) {

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travel AA Bill</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div id="app" v-cloak>
+    <main class="shell" v-if="session.token">
+      <aside class="sidebar">
+        <div>
+          <div class="brand">Travel AA Bill</div>
+          <div class="muted small">{{ session.displayName }} · {{ session.role === 'ADMIN' ? '管理员' : '成员' }}</div>
+        </div>
+        <nav>
+          <button :class="{active:view==='plans'}" @click="goPlans">计划</button>
+          <button v-if="session.role==='ADMIN'" :class="{active:view==='invite'}" @click="view='invite'">邀请</button>
+          <button @click="logout">退出</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <header class="topbar">
+          <div>
+            <h1>{{ pageTitle }}</h1>
+            <p>{{ pageSubTitle }}</p>
+          </div>
+          <button class="primary" v-if="view==='plans'" @click="showCreate = true">新建计划</button>
+        </header>
+
+        <section v-if="view==='plans'" class="workspace">
+          <div class="filters">
+            <input v-model="keyword" placeholder="搜索目的地" @keyup.enter="loadPlans" />
+            <button @click="loadPlans">搜索</button>
+          </div>
+          <div class="plan-grid">
+            <article class="card plan-card" v-for="plan in plans.items" :key="plan.id" @click="openPlan(plan.id)">
+              <div class="row between">
+                <strong>{{ plan.destination }}</strong>
+                <span class="pill">{{ plan.status === 'OPEN' ? '进行中' : '已关闭' }}</span>
+              </div>
+              <p>{{ plan.startDate }} 至 {{ plan.endDate }}</p>
+              <div class="muted small">{{ plan.creator ? '我创建的' : plan.creatorName + ' 创建' }}</div>
+            </article>
+            <div class="empty" v-if="!plans.items.length">还没有旅游计划。</div>
+          </div>
+        </section>
+
+        <section v-if="view==='detail' && currentPlan" class="workspace detail-grid">
+          <article class="panel">
+            <div class="row between wrap">
+              <div>
+                <h2>{{ currentPlan.destination }}</h2>
+                <p class="muted">{{ currentPlan.startDate }} 至 {{ currentPlan.endDate }}</p>
+              </div>
+              <span class="pill">{{ currentPlan.status === 'OPEN' ? '进行中' : '已关闭' }}</span>
+            </div>
+            <p class="description">{{ currentPlan.description }}</p>
+            <div class="image-grid" v-if="currentPlan.images && currentPlan.images.length">
+              <img v-for="image in currentPlan.images" :key="image.id" :src="imageUrl(image)" :alt="image.filename" />
+            </div>
+            <label class="upload" v-if="currentPlan.creator">
+              <input type="file" accept="image/*" @change="uploadImage" />
+              上传计划图片
+            </label>
+            <div class="actions">
+              <button @click="copyShare">复制分享链接</button>
+              <button v-if="!currentPlan.creator && !currentPlan.approved" @click="joinPlan">申请加入</button>
+              <button v-if="currentPlan.creator && currentPlan.status==='OPEN'" @click="closePlan">关闭计划</button>
+              <button v-if="currentPlan.creator && currentPlan.status==='CLOSED'" @click="reopenPlan">重新打开</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>成员</h2>
+            <div class="list-line" v-for="member in currentPlan.members" :key="member.id">
+              <span>{{ member.displayName }}</span>
+              <span class="muted small">{{ member.status }}</span>
+            </div>
+            <template v-if="currentPlan.pendingMembers && currentPlan.pendingMembers.length">
+              <h3>待审核</h3>
+              <div class="list-line" v-for="member in currentPlan.pendingMembers" :key="member.id">
+                <span>{{ member.displayName }}</span>
+                <span>
+                  <button class="small-btn" @click="reviewMember(member.id, true)">通过</button>
+                  <button class="small-btn danger" @click="reviewMember(member.id, false)">拒绝</button>
+                </span>
+              </div>
+            </template>
+          </article>
+
+          <article class="panel wide">
+            <div class="row between wrap">
+              <h2>花费</h2>
+              <button v-if="currentPlan.canAddExpense" @click="showExpense = true">新增花费</button>
+            </div>
+            <div class="table">
+              <div class="thead"><span>付款人</span><span>金额</span><span>日期</span><span>用途</span></div>
+              <div class="tr" v-for="expense in currentPlan.expenses" :key="expense.id">
+                <span>{{ expense.payerName }}</span><strong>¥{{ expense.amount }}</strong><span>{{ expense.spentAt }}</span><span>{{ expense.note }}</span>
+              </div>
+            </div>
+            <h3>分摊</h3>
+            <div class="settlements">
+              <div v-for="item in currentPlan.settlements" :key="item.userId">
+                {{ item.payerName }} 已付 ¥{{ item.paidTotal }}，人均 ¥{{ item.perPersonTotal }}
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section v-if="view==='invite'" class="workspace">
+          <article class="panel invite-panel">
+            <h2>邀请注册</h2>
+            <p class="muted">只有管理员可以生成注册链接。每个链接只能注册一个账号，使用后立即失效。</p>
+            <button class="primary" @click="createInvite">生成邀请链接</button>
+            <div class="invite-link" v-if="inviteUrl">{{ inviteUrl }}</div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <section class="auth" v-else>
+      <div class="auth-card">
+        <h1>{{ registerMode ? '邀请注册' : '登录' }}</h1>
+        <p>{{ registerMode ? '使用管理员发给你的邀请链接创建账号。' : '请输入账号和密码进入旅游 AA 记账。' }}</p>
+        <input v-model="authForm.username" placeholder="账号" autocomplete="username" />
+        <input v-model="authForm.password" type="password" placeholder="密码" autocomplete="current-password" />
+        <input v-if="registerMode" v-model="authForm.displayName" placeholder="昵称" />
+        <button class="primary" @click="registerMode ? register() : login()">{{ registerMode ? '注册并登录' : '登录' }}</button>
+        <button v-if="registerMode" @click="registerMode=false">返回登录</button>
+      </div>
+    </section>
+
+    <div class="modal" v-if="showCreate">
+      <form class="dialog" @submit.prevent="createPlan">
+        <h2>新建旅游计划</h2>
+        <input v-model="planForm.destination" placeholder="目的地" />
+        <div class="two">
+          <input v-model="planForm.startDate" type="date" />
+          <input v-model="planForm.endDate" type="date" />
+        </div>
+        <textarea v-model="planForm.description" placeholder="旅游计划文字"></textarea>
+        <div class="row end">
+          <button type="button" @click="showCreate=false">取消</button>
+          <button class="primary">创建</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal" v-if="showExpense">
+      <form class="dialog" @submit.prevent="addExpense">
+        <h2>新增花费</h2>
+        <input v-model="expenseForm.amount" type="number" step="0.01" placeholder="金额" />
+        <input v-model="expenseForm.spentAt" type="date" />
+        <input v-model="expenseForm.note" placeholder="用途" />
+        <div class="row end">
+          <button type="button" @click="showExpense=false">取消</button>
+          <button class="primary">保存</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="toast" v-if="message">{{ message }}</div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import com.travelbill.api.domain.PlanMember;
 import com.travelbill.api.domain.PlanStatus;
 import com.travelbill.api.domain.TravelExpense;
 import com.travelbill.api.domain.TravelPlan;
+import com.travelbill.api.domain.TravelPlanImage;
 import com.travelbill.api.dto.Requests.ClosePlanRequest;
 import com.travelbill.api.dto.Requests.CreateExpenseRequest;
 import com.travelbill.api.dto.Requests.CreatePlanRequest;
@@ -13,11 +14,13 @@ import com.travelbill.api.dto.Responses.ExpensePage;
 import com.travelbill.api.dto.Responses.ExpenseView;
 import com.travelbill.api.dto.Responses.MemberView;
 import com.travelbill.api.dto.Responses.PlanDetail;
+import com.travelbill.api.dto.Responses.PlanImageView;
 import com.travelbill.api.dto.Responses.PlanPage;
 import com.travelbill.api.dto.Responses.PlanSummary;
 import com.travelbill.api.dto.Responses.SettlementView;
 import com.travelbill.api.repository.PlanMemberRepository;
 import com.travelbill.api.repository.TravelExpenseRepository;
+import com.travelbill.api.repository.TravelPlanImageRepository;
 import com.travelbill.api.repository.TravelPlanRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -28,6 +31,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -48,17 +52,20 @@ public class TravelPlanService {
     private final TravelPlanRepository planRepository;
     private final PlanMemberRepository memberRepository;
     private final TravelExpenseRepository expenseRepository;
+    private final TravelPlanImageRepository imageRepository;
     private final AppUserService appUserService;
 
     public TravelPlanService(
             TravelPlanRepository planRepository,
             PlanMemberRepository memberRepository,
             TravelExpenseRepository expenseRepository,
+            TravelPlanImageRepository imageRepository,
             AppUserService appUserService
     ) {
         this.planRepository = planRepository;
         this.memberRepository = memberRepository;
         this.expenseRepository = expenseRepository;
+        this.imageRepository = imageRepository;
         this.appUserService = appUserService;
     }
 
@@ -80,13 +87,55 @@ public class TravelPlanService {
         plan.setEndDate(request.endDate());
         plan.setDescription(request.description().trim());
         plan.setCreatorId(userId);
-        plan.setCreatorName(request.creatorName().trim());
+        plan.setCreatorName(StringUtils.hasText(request.creatorName()) ? request.creatorName().trim() : appUserService.displayNameOf(userId));
         plan.setShareToken(UUID.randomUUID().toString().replace("-", ""));
         plan.setRequestId(requestId);
         planRepository.save(plan);
 
-        ensureCreatorMembership(plan, userId, request.creatorName().trim());
+        ensureCreatorMembership(plan, userId, plan.getCreatorName());
         return detailFor(plan, userId, false);
+    }
+
+    @Transactional
+    public PlanDetail addPlanImage(Long planId, String userId, MultipartFile file) {
+        TravelPlan plan = ownedPlan(planId, userId);
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "请选择要上传的图片");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "只能上传图片文件");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "图片不能超过5MB");
+        }
+        try {
+            TravelPlanImage image = new TravelPlanImage();
+            image.setPlan(plan);
+            image.setFilename(StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "plan-image");
+            image.setContentType(contentType);
+            image.setData(file.getBytes());
+            imageRepository.save(image);
+            return detailFor(plan, userId, false);
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "图片上传失败");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public TravelPlanImage getPlanImage(Long planId, Long imageId, String userId, String shareToken) {
+        TravelPlan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "旅游计划不存在"));
+        boolean sharedPreview = StringUtils.hasText(shareToken);
+        if (!canPreviewPlan(plan, userId, sharedPreview)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "无权查看该图片");
+        }
+        if (sharedPreview && !plan.getShareToken().equals(shareToken)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "分享链接无效");
+        }
+        return imageRepository.findById(imageId)
+                .filter(image -> image.getPlan().getId().equals(planId))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "图片不存在"));
     }
 
     @Transactional(readOnly = true)
@@ -268,6 +317,7 @@ public class TravelPlanService {
     public void deletePlan(Long id, String userId) {
         TravelPlan plan = ownedPlan(id, userId);
         expenseRepository.deleteByPlan(plan);
+        imageRepository.deleteByPlan(plan);
         memberRepository.deleteByPlan(plan);
         planRepository.delete(plan);
     }
@@ -508,6 +558,9 @@ public class TravelPlanService {
                 plan.getStartDate(),
                 plan.getEndDate(),
                 plan.getDescription(),
+                imageRepository.findByPlanOrderByCreatedAtAsc(plan).stream()
+                        .map(image -> toPlanImageView(plan, image))
+                        .toList(),
                 plan.getCreatorId(),
                 plan.getCreatorName(),
                 plan.getShareToken(),
@@ -523,6 +576,15 @@ public class TravelPlanService {
                 pendingMembers,
                 expenses,
                 settlements
+        );
+    }
+
+    private PlanImageView toPlanImageView(TravelPlan plan, TravelPlanImage image) {
+        return new PlanImageView(
+                image.getId(),
+                image.getFilename(),
+                image.getContentType(),
+                "/api/plans/" + plan.getId() + "/images/" + image.getId()
         );
     }
 

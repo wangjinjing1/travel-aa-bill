@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 @Component
 public class ApiGuardFilter extends OncePerRequestFilter {
     private static final Pattern SHARE_PREVIEW_PATH = Pattern.compile("^/api/plans/\\d+$");
+    private static final Pattern SHARE_IMAGE_PATH = Pattern.compile("^/api/plans/\\d+/images/\\d+$");
 
     private final AuthTokenService tokenService;
     private final IpSecurityService ipSecurityService;
@@ -84,14 +85,18 @@ public class ApiGuardFilter extends OncePerRequestFilter {
         if (!uri.startsWith("/api/")) {
             return false;
         }
-        if (uri.startsWith("/api/auth/")) {
+        if (uri.equals("/api/auth/login")
+                || uri.equals("/api/auth/register")
+                || uri.equals("/api/auth/wechat-login")) {
             return false;
         }
         return !requiresOptionalAuth(request);
     }
 
     private boolean requiresOptionalAuth(HttpServletRequest request) {
-        return "GET".equalsIgnoreCase(request.getMethod()) && SHARE_PREVIEW_PATH.matcher(request.getRequestURI()).matches();
+        return "GET".equalsIgnoreCase(request.getMethod())
+                && (SHARE_PREVIEW_PATH.matcher(request.getRequestURI()).matches()
+                || SHARE_IMAGE_PATH.matcher(request.getRequestURI()).matches());
     }
 
     private String resolveUserId(HttpServletRequest request, boolean required) {

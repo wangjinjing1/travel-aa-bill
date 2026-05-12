@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class IpSecurityService {
     private static final Duration DAY_WINDOW = Duration.ofHours(24);
-    private static final String DAILY_COUNTER_PREFIX = "travelbill:ip:counter:";
+    private static final String DAILY_COUNTER_PREFIX = "travel-aa-bill:ip:counter:";
     private static final ZoneId DEFAULT_ZONE = ZoneId.systemDefault();
 
     private final Map<String, MinuteWindowCounter> minuteCounters = new ConcurrentHashMap<>();

@@ -1,14 +1,30 @@
-CREATE DATABASE IF NOT EXISTS `travel-bill`
+CREATE DATABASE IF NOT EXISTS `travel_bill`
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE `travel-bill`;
+USE `travel_bill`;
 
 CREATE TABLE IF NOT EXISTS app_user (
   id VARCHAR(80) PRIMARY KEY,
+  open_id VARCHAR(64) NULL,
+  username VARCHAR(80) NOT NULL,
+  password_hash VARCHAR(128) NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'USER',
   display_name VARCHAR(80) NOT NULL,
+  avatar_url VARCHAR(500) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_app_user_display_name (display_name)
+  UNIQUE KEY uk_app_user_open_id (open_id),
+  UNIQUE KEY uk_app_user_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS registration_invite (
+  token VARCHAR(64) PRIMARY KEY,
+  created_by VARCHAR(80) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  used_by VARCHAR(80) NULL,
+  used_at DATETIME NULL,
+  INDEX idx_registration_invite_created_by (created_by),
+  INDEX idx_registration_invite_used_by (used_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS travel_plan (
@@ -30,12 +46,28 @@ CREATE TABLE IF NOT EXISTS travel_plan (
   UNIQUE KEY uk_plan_creator_request (creator_id, request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS travel_plan_image (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  plan_id BIGINT NOT NULL,
+  filename VARCHAR(120) NOT NULL,
+  content_type VARCHAR(80) NOT NULL,
+  data LONGBLOB NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_travel_plan_image_plan (plan_id),
+  CONSTRAINT fk_travel_plan_image_plan
+    FOREIGN KEY (plan_id) REFERENCES travel_plan(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS plan_member (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   plan_id BIGINT NOT NULL,
   user_id VARCHAR(80) NOT NULL,
   display_name VARCHAR(80) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
   joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME NULL,
+  reviewed_by VARCHAR(80) NULL,
   UNIQUE KEY uk_plan_member (plan_id, user_id),
   INDEX idx_plan_member_user (user_id),
   CONSTRAINT fk_plan_member_plan

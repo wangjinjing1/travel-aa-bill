@@ -10,6 +10,7 @@ import com.travelbill.api.dto.Responses.PlanPage;
 import com.travelbill.api.dto.Responses.PlanSummary;
 import com.travelbill.api.service.ApiException;
 import com.travelbill.api.service.TravelPlanService;
+import com.travelbill.api.domain.TravelPlanImage;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -94,6 +96,28 @@ public class TravelPlanController {
             @RequestParam(value = "shareToken", required = false) String shareToken
     ) {
         return service.requestJoin(id, currentUser(httpRequest), shareToken);
+    }
+
+    @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PlanDetail uploadPlanImage(
+            @PathVariable Long id,
+            jakarta.servlet.http.HttpServletRequest httpRequest,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return service.addPlanImage(id, currentUser(httpRequest), file);
+    }
+
+    @GetMapping("/{id}/images/{imageId}")
+    public ResponseEntity<byte[]> planImage(
+            @PathVariable Long id,
+            @PathVariable Long imageId,
+            jakarta.servlet.http.HttpServletRequest httpRequest,
+            @RequestParam(value = "shareToken", required = false) String shareToken
+    ) {
+        TravelPlanImage image = service.getPlanImage(id, imageId, optionalCurrentUser(httpRequest), shareToken);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.getContentType()))
+                .body(image.getData());
     }
 
     @PostMapping("/{id}/members/{memberId}/approve")

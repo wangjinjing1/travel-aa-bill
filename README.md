@@ -1,64 +1,41 @@
-# Travel Bill
+# Travel AA Bill
 
-旅游费用小程序，包含微信小程序前端和 Spring Boot + MySQL 后端。
+旅游 AA 记账 Web 应用。前端已合并到 Spring Boot 后端静态资源目录中，部署一个后端镜像即可同时提供网页端和 API。
 
 ## 目录
 
-- `travel-bill-frontend`: 微信小程序前端
-- `travel-bill-backend`: Java 后端
-- `travel-bill-backend/src/main/resources/schema.sql`: 创建数据库和表的 SQL
+- `travel-bill-backend`: Spring Boot 后端和 Web 前端
+- `travel-bill-backend/src/main/resources/static`: 手机网页端和 PC 端页面
+- `travel-bill-backend/src/main/resources/schema.sql`: 数据库结构参考
+- `.env`: Docker Compose 和本地 IDEA 启动共用的配置
+- `docker-compose.yml`: MySQL、Redis、后端一键启动
 
-## 本地启动
+## 启动
 
-1. 先创建数据库：
-
-```sql
-CREATE DATABASE IF NOT EXISTS `travel-bill`
-  DEFAULT CHARACTER SET utf8mb4
-  DEFAULT COLLATE utf8mb4_unicode_ci;
-```
-
-后端启动时会自动创建/更新表结构。完整建库建表 SQL 仍保留在 `travel-bill-backend/src/main/resources/schema.sql`，方便手动初始化或部署时使用。
-
-2. 修改后端数据库账号密码：
-
-```yaml
-# travel-bill-backend/src/main/resources/application.yml
-spring:
-  datasource:
-    username: root
-    password: root
-```
-
-3. 启动后端：
+根目录执行：
 
 ```bash
-cd travel-bill-backend
-mvn spring-boot:run
+docker compose up -d --build
 ```
 
-4. 用微信开发者工具打开 `travel-bill-frontend`。
+默认访问地址：
 
-前端默认请求 `http://localhost:8080/api`，配置在 `miniprogram/utils/request.ts`。
+```text
+http://localhost:24975/
+```
+
+同一份 `.env` 同时支持两种场景：
+
+- IDEA 直接启动 `TravelBillApplication`：后端读取 `.env`，连接 `127.0.0.1:24976` 的 MySQL 和 `127.0.0.1:24977` 的 Redis。
+- Docker Compose 启动：Compose 读取 `.env`，后端容器会覆盖数据库和 Redis 地址为 Docker 网络内的 `mysql:3306` 和 `redis:6379`。
+
+默认管理员账号密码在 `.env` 的 `APP_ADMIN_USERNAME` 和 `APP_ADMIN_PASSWORD` 中配置。应用启动时只会在数据库中不存在该管理员账号时创建；如果已存在，不会覆盖数据库里的密码。
 
 ## 功能
 
-- 创建旅游计划：地点、开始/结束日期、详细计划描述
-- 创建者可分享计划链接到微信群
-- 只有通过分享链接进入的用户会加入可见成员列表
-- 成员可新增自己的旅游花费
-- 所有可见成员可查看每条花费和人均分摊金额
-- 创建者可在旅游结束后输入分摊总人数并关闭计划
-
-## 后端防护
-
-- 数据访问使用 Spring Data JPA 参数化查询，不拼接用户输入 SQL。
-- 业务接口需要 `Authorization: Bearer <固定128位token>`，后端和小程序配置的 token 不一致时直接返回 401。
-- 当前小程序使用本地生成的 `X-User-Id` 标识用户，前提是固定 token 先校验通过。
-- 请求 DTO 对必填、长度、金额范围和金额位数做校验。
-- POST 请求支持 `X-Request-Id` 幂等键，创建计划和新增花费可防止同一次请求重复落库。
-- API 增加基础限流：同一用户或 IP 每分钟最多 120 次请求。
-- 响应增加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Cache-Control` 等安全头。
-- 固定 token 配置在后端 `app.auth.static-token` 和前端 `miniprogram/utils/request.ts` 的 `STATIC_TOKEN`，两边必须保持一致。
-- 用户首次进入小程序会输入昵称或真实姓名，后端通过 `/api/users/identify` 创建或查找用户 id；之后业务接口用这个 id 访问数据。
-- 为兼容旧数据，识别用户时会优先复用同名旧计划创建者或同名成员的历史 user id。
+- 账号密码登录，不开放公开注册。
+- 管理员可生成一次性邀请链接，被邀请用户通过链接注册。
+- 创建旅游计划，支持文字和图片一起展示。
+- 计划分享、成员申请加入、创建者审核成员。
+- 成员记账、结算和 Excel 导出。
+- IP 黑名单逻辑保持，Redis key 前缀为 `travel-aa-bill`。

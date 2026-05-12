@@ -11,7 +11,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "app_user", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_app_user_open_id", columnNames = "open_id")
+        @UniqueConstraint(name = "uk_app_user_open_id", columnNames = "open_id"),
+        @UniqueConstraint(name = "uk_app_user_username", columnNames = "username")
 })
 public class AppUser {
     @Id
@@ -20,6 +21,15 @@ public class AppUser {
 
     @Column(name = "open_id", length = 64)
     private String openId;
+
+    @Column(nullable = false, length = 80)
+    private String username;
+
+    @Column(name = "password_hash", nullable = false, length = 128)
+    private String passwordHash;
+
+    @Column(nullable = false, length = 20)
+    private String role = "USER";
 
     @Column(name = "display_name", nullable = false, length = 80)
     private String displayName;
@@ -44,6 +54,30 @@ public class AppUser {
 
     public void setOpenId(String openId) {
         this.openId = openId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public String getDisplayName() {

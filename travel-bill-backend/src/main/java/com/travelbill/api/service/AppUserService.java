@@ -2,11 +2,16 @@ package com.travelbill.api.service;
 
 import com.travelbill.api.domain.AppUser;
 import com.travelbill.api.domain.PlanMember;
+import com.travelbill.api.domain.RegistrationInvite;
 import com.travelbill.api.domain.TravelExpense;
 import com.travelbill.api.domain.TravelPlan;
+import com.travelbill.api.dto.Requests.RegisterWithInviteRequest;
+import com.travelbill.api.dto.Responses.AuthSession;
+import com.travelbill.api.dto.Responses.InviteLink;
 import com.travelbill.api.dto.Responses.UserProfile;
 import com.travelbill.api.repository.AppUserRepository;
 import com.travelbill.api.repository.PlanMemberRepository;
+import com.travelbill.api.repository.RegistrationInviteRepository;
 import com.travelbill.api.repository.TravelExpenseRepository;
 import com.travelbill.api.repository.TravelPlanRepository;
 import org.springframework.http.HttpStatus;
@@ -14,8 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class AppUserService {
@@ -25,17 +32,82 @@ public class AppUserService {
     private final PlanMemberRepository planMemberRepository;
     private final TravelPlanRepository travelPlanRepository;
     private final TravelExpenseRepository travelExpenseRepository;
+    private final RegistrationInviteRepository inviteRepository;
+    private final PasswordService passwordService;
+    private final AuthTokenService authTokenService;
 
     public AppUserService(
             AppUserRepository userRepository,
             PlanMemberRepository planMemberRepository,
             TravelPlanRepository travelPlanRepository,
-            TravelExpenseRepository travelExpenseRepository
+            TravelExpenseRepository travelExpenseRepository,
+            RegistrationInviteRepository inviteRepository,
+            PasswordService passwordService,
+            AuthTokenService authTokenService
     ) {
         this.userRepository = userRepository;
         this.planMemberRepository = planMemberRepository;
         this.travelPlanRepository = travelPlanRepository;
         this.travelExpenseRepository = travelExpenseRepository;
+        this.inviteRepository = inviteRepository;
+        this.passwordService = passwordService;
+        this.authTokenService = authTokenService;
+    }
+
+    @Transactional(readOnly = true)
+    public AuthSession loginByPassword(String username, String password) {
+        AppUser user = userRepository.findByUsername(normalizeUsername(username))
+                .filter(item -> passwordService.matches(password, item.getPasswordHash()))
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "账号或密码错误"));
+        return toAuthSession(user);
+    }
+
+    @Transactional
+    public AuthSession registerWithInvite(RegisterWithInviteRequest request) {
+        RegistrationInvite invite = inviteRepository.findById(request.inviteToken().trim())
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "注册链接无效"));
+        if (invite.getUsedAt() != null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "注册链接已被使用");
+        }
+
+        String username = normalizeUsername(request.username());
+        userRepository.findByUsername(username).ifPresent(user -> {
+            throw new ApiException(HttpStatus.CONFLICT, "账号已存在");
+        });
+
+        AppUser user = new AppUser();
+        user.setUsername(username);
+        user.setPasswordHash(passwordService.hash(request.password()));
+        user.setDisplayName(normalizeDisplayName(request.displayName()));
+        user.setRole("USER");
+        AppUser saved = userRepository.save(user);
+
+        invite.setUsedAt(LocalDateTime.now());
+        invite.setUsedBy(saved.getId());
+        inviteRepository.save(invite);
+        return toAuthSession(saved);
+    }
+
+    @Transactional
+    public InviteLink createInvite(String currentUserId, String baseUrl) {
+        AppUser admin = requireAdmin(currentUserId);
+        RegistrationInvite invite = new RegistrationInvite();
+        invite.setToken(UUID.randomUUID().toString().replace("-", ""));
+        invite.setCreatedBy(admin.getId());
+        inviteRepository.save(invite);
+
+        String normalizedBaseUrl = StringUtils.hasText(baseUrl) ? baseUrl.trim().replaceAll("/+$", "") : "";
+        return new InviteLink(invite.getToken(), normalizedBaseUrl + "/#/register?token=" + invite.getToken());
+    }
+
+    @Transactional(readOnly = true)
+    public AppUser requireAdmin(String userId) {
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "请先登录"));
+        if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有管理员可以执行此操作");
+        }
+        return user;
     }
 
     @Transactional
@@ -58,7 +130,7 @@ public class AppUserService {
     public UserProfile profileOf(String userId) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "用户不存在"));
-        return new UserProfile(user.getId(), user.getDisplayName(), user.getAvatarUrl());
+        return new UserProfile(user.getId(), user.getDisplayName(), user.getAvatarUrl(), user.getUsername(), user.getRole());
     }
 
     @Transactional
@@ -88,17 +160,33 @@ public class AppUserService {
         }
 
         AppUser saved = changed ? userRepository.save(user) : user;
-        return new UserProfile(saved.getId(), saved.getDisplayName(), saved.getAvatarUrl());
+        return new UserProfile(saved.getId(), saved.getDisplayName(), saved.getAvatarUrl(), saved.getUsername(), saved.getRole());
     }
 
     private AppUser preserveExistingProfileOnLogin(AppUser user) {
+        boolean changed = false;
         if (!StringUtils.hasText(user.getDisplayName())) {
             user.setDisplayName(DEFAULT_DISPLAY_NAME);
-            AppUser saved = userRepository.save(user);
-            syncDisplayNameAcrossPlans(saved.getId(), saved.getDisplayName());
-            return saved;
+            changed = true;
         }
-        return user;
+        if (!StringUtils.hasText(user.getUsername())) {
+            user.setUsername("wx_" + user.getOpenId());
+            changed = true;
+        }
+        if (!StringUtils.hasText(user.getPasswordHash())) {
+            user.setPasswordHash(passwordService.hash(UUID.randomUUID().toString()));
+            changed = true;
+        }
+        if (!StringUtils.hasText(user.getRole())) {
+            user.setRole("USER");
+            changed = true;
+        }
+        if (!changed) {
+            return user;
+        }
+        AppUser saved = userRepository.save(user);
+        syncDisplayNameAcrossPlans(saved.getId(), saved.getDisplayName());
+        return saved;
     }
 
     private AppUser bindLegacyUserOrCreate(String openId, String displayName) {
@@ -107,7 +195,34 @@ public class AppUserService {
                 .orElseGet(AppUser::new);
         user.setOpenId(openId);
         user.setDisplayName(displayName);
+        if (!StringUtils.hasText(user.getUsername())) {
+            user.setUsername("wx_" + openId);
+        }
+        if (!StringUtils.hasText(user.getPasswordHash())) {
+            user.setPasswordHash(passwordService.hash(UUID.randomUUID().toString()));
+        }
+        if (!StringUtils.hasText(user.getRole())) {
+            user.setRole("USER");
+        }
         return userRepository.save(user);
+    }
+
+    private AuthSession toAuthSession(AppUser user) {
+        return new AuthSession(
+                user.getId(),
+                user.getUsername(),
+                user.getDisplayName(),
+                user.getAvatarUrl(),
+                user.getRole(),
+                authTokenService.issue(user.getId())
+        );
+    }
+
+    private String normalizeUsername(String username) {
+        if (!StringUtils.hasText(username)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "请输入账号");
+        }
+        return username.trim();
     }
 
     private String normalizeDisplayName(String displayName) {
