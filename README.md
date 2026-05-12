@@ -1,27 +1,19 @@
 # Travel AA Bill
 
-旅游 AA 记账 Web 应用。前端已合并到 Spring Boot 后端静态资源目录中，部署一个后端镜像即可同时提供网页端和 API。
+旅游 AA 记账 Web 应用。当前项目根目录就是 Spring Boot 项目，前端页面放在 `src/main/resources/static`，部署一个后端服务即可同时提供网页端和 API。
 
 ## 目录
 
-- `travel-bill-backend`: Spring Boot 后端和 Web 前端
-- `travel-bill-backend/src/main/resources/static`: 手机网页端和 PC 端页面
-- `travel-bill-backend/src/main/resources/schema.sql`: 数据库结构参考
+- `src/main/java`: 后端代码
+- `src/main/resources/static`: 手机网页端和 PC 端页面
+- `src/main/resources/schema.sql`: 数据库结构参考
 - `.env`: 后端运行配置
+- `Dockerfile`: 后端镜像构建文件
 - `docker-compose.yml`: 只启动后端服务，MySQL 和 Redis 使用外部服务
 
 ## 启动
 
-先准备外部 MySQL 和 Redis，并按实际地址修改 `.env`：
-
-```properties
-SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/travel_bill?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=root
-SPRING_DATA_REDIS_HOST=127.0.0.1
-SPRING_DATA_REDIS_PORT=6379
-SPRING_DATA_REDIS_PASSWORD=
-```
+先准备外部 MySQL 和 Redis，并按实际地址修改 `.env`。
 
 根目录执行：
 
