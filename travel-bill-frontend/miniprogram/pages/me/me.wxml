@@ -1,0 +1,28 @@
+<view class="page">
+  <view wx:if="{{loading && !profile}}" class="card">
+    <view class="section-title">正在登录</view>
+  </view>
+
+  <view wx:elif="{{!loggedIn}}" class="card">
+    <view class="section-title">个人资料</view>
+    <button class="primary-btn action-btn login-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="login">登录</button>
+  </view>
+
+  <view wx:elif="{{profile}}" class="card profile-card">
+    <view class="section-header">
+      <view class="section-title">个人资料</view>
+      <button wx:if="{{!editing}}" class="ghost-btn mini-btn" bindtap="toggleEdit">修改资料</button>
+      <button wx:else class="ghost-btn mini-btn" loading="{{loading}}" disabled="{{loading}}" bindtap="saveNickname">保存</button>
+    </view>
+
+    <view class="name-panel">
+      <view class="name-label">昵称</view>
+      <view class="name-content">
+        <input wx:if="{{editing}}" class="field" maxlength="80" value="{{nickname}}" placeholder="请输入昵称" bindinput="onNicknameInput" />
+        <view wx:else class="name-value">{{profile.displayName}}</view>
+      </view>
+    </view>
+
+    <button class="ghost-btn action-btn logout-btn" bindtap="logout">退出登录</button>
+  </view>
+</view>

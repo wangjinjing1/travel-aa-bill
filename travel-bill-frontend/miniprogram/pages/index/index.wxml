@@ -1,0 +1,33 @@
+<view class="page">
+  <view class="hero-card {{showCreateForm ? 'hero-compact' : ''}}">
+    <view class="hero-badge">TRIP</view>
+    <view class="title">旅游账单</view>
+    <view class="subtitle">先规划，再分享，再一起记账。</view>
+    <view class="hero-desc">创建旅游计划后，可以把链接分享给同行好友。审核通过的成员才能查看账单与新增花费。</view>
+    <button class="primary-btn hero-btn" bindtap="startCreatePlan">创建旅游计划</button>
+  </view>
+
+  <view wx:if="{{showCreateForm}}" class="form-card">
+    <view class="section-heading">
+      <view class="section-title">新建旅游计划</view>
+      <button class="ghost-btn mini-btn" size="mini" bindtap="hideCreatePlanForm">收起</button>
+    </view>
+
+    <input class="field" maxlength="120" placeholder="计划名称 / 旅游地点" value="{{form.destination}}" data-field="destination" bindinput="onInput" />
+
+    <view class="date-row">
+      <picker mode="date" value="{{form.startDate}}" data-field="startDate" bindchange="onDateChange">
+        <view class="field date-field">{{form.startDate || '开始日期'}}</view>
+      </picker>
+      <picker mode="date" value="{{form.endDate}}" data-field="endDate" bindchange="onDateChange">
+        <view class="field date-field">{{form.endDate || '结束日期'}}</view>
+      </picker>
+    </view>
+
+    <textarea class="textarea" maxlength="2000" placeholder="输入这次旅行的路线、住宿、预算分工或注意事项" value="{{form.description}}" data-field="description" bindinput="onInput" />
+
+    <input class="field" maxlength="80" placeholder="创建者昵称" value="{{form.creatorName}}" data-field="creatorName" bindinput="onInput" />
+
+    <button class="primary-btn create-btn" loading="{{creating}}" disabled="{{creating}}" bindtap="createPlan">{{creating ? '创建中' : '确认创建'}}</button>
+  </view>
+</view>

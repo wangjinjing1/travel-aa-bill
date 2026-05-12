@@ -1,0 +1,84 @@
+.page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 28rpx;
+  background: linear-gradient(180deg, #f3f8fb 0%, #f9fbfd 36%, #ffffff 100%);
+}
+
+.card {
+  background: #ffffff;
+  border: 1rpx solid #e5e9ef;
+  border-radius: 28rpx;
+  padding: 24rpx;
+  box-shadow: 0 10rpx 28rpx rgba(23, 32, 51, 0.05);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 18rpx;
+}
+
+.section-title {
+  color: #172033;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.name-panel {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+  border: 1rpx solid #e0e8ef;
+}
+
+.name-label {
+  color: #172033;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.name-content {
+  margin-top: 14rpx;
+}
+
+.name-value {
+  color: #172033;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.field {
+  width: 100%;
+  height: 78rpx;
+  line-height: 78rpx;
+  box-sizing: border-box;
+  padding: 0 20rpx;
+  border-radius: 18rpx;
+  background: #ffffff;
+  border: 1rpx solid #dbe5ee;
+  color: #172033;
+  font-size: 28rpx;
+}
+
+.action-btn {
+  width: 100%;
+  margin-top: 22rpx;
+  min-height: 74rpx;
+  border-radius: 999rpx;
+}
+
+.mini-btn {
+  margin: 0;
+  height: 60rpx;
+  padding: 0 24rpx;
+  font-size: 24rpx;
+  border-radius: 999rpx;
+}
+
+.login-btn {
+  font-size: 30rpx;
+  font-weight: 700;
+}

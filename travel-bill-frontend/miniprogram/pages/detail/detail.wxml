@@ -1,0 +1,163 @@
+<view class="page">
+  <view wx:if="{{plan}}" class="content">
+    <view class="card hero-card">
+      <view class="hero-top">
+        <view class="status-chip {{plan.status === 'OPEN' ? 'status-open' : 'status-closed'}}">
+          {{plan.status === 'OPEN' ? '进行中' : '已关闭'}}
+        </view>
+        <view class="hero-actions" wx:if="{{plan.creator}}">
+          <button class="ghost-btn action-btn" open-type="share">分享计划</button>
+          <button class="danger-btn action-btn" bindtap="confirmDeletePlan" loading="{{deleting}}" disabled="{{deleting}}">删除计划</button>
+        </view>
+      </view>
+
+      <view class="hero-title">{{plan.destination}}</view>
+      <view class="hero-date">{{plan.startDate}} 至 {{plan.endDate}}</view>
+      <view class="hero-meta">计划创建人：{{plan.creatorName}}</view>
+      <view class="hero-desc">{{plan.description}}</view>
+
+      <view class="preview-bar" wx:if="{{!plan.creator}}">
+        <view class="preview-tag">{{!loggedIn ? '游客预览' : (plan.approved ? '已加入' : (plan.membershipStatus === 'PENDING' ? '待审核' : '未加入'))}}</view>
+        <button
+          wx:if="{{!plan.approved && plan.membershipStatus !== 'PENDING'}}"
+          class="primary-btn preview-btn"
+          bindtap="requestJoin"
+          loading="{{joining}}"
+          disabled="{{joining}}"
+        >
+          {{loggedIn ? '申请加入' : '登录并申请加入'}}
+        </button>
+        <view wx:elif="{{plan.membershipStatus === 'PENDING'}}" class="pending-tip">已提交加入申请，等待创建者审核</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">同行成员</view>
+      <view class="member-list" wx:if="{{plan.members.length}}">
+        <view class="member-chip" wx:for="{{plan.members}}" wx:key="id">{{item.displayName}}</view>
+      </view>
+      <view wx:else class="empty-text">暂无成员</view>
+    </view>
+
+    <view class="card" wx:if="{{plan.creator && plan.pendingMembers.length}}">
+      <view class="section-title">待审核成员</view>
+      <view class="pending-list">
+        <view class="pending-item" wx:for="{{plan.pendingMembers}}" wx:key="id">
+          <view class="pending-info">
+            <view class="pending-name">{{item.displayName}}</view>
+            <view class="pending-time">申请时间：{{item.joinedAtText}}</view>
+          </view>
+          <view class="pending-actions">
+            <button class="ghost-btn pending-btn" data-id="{{item.id}}" bindtap="rejectMember" loading="{{rejectingId === item.id}}" disabled="{{rejectingId === item.id || approvingId === item.id}}">拒绝</button>
+            <button class="primary-btn pending-btn" data-id="{{item.id}}" bindtap="approveMember" loading="{{approvingId === item.id}}" disabled="{{approvingId === item.id || rejectingId === item.id}}">通过</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{(plan.creator || plan.canAddExpense) && (plan.status === 'OPEN' || plan.creator)}}">
+      <view class="section-title">计划操作</view>
+      <view class="action-grid">
+        <button wx:if="{{plan.status === 'OPEN' && plan.canAddExpense}}" class="primary-btn action-grid-btn" bindtap="openExpenseModal">新增花费</button>
+        <button wx:if="{{plan.creator && plan.status === 'OPEN'}}" class="ghost-btn action-grid-btn" bindtap="openSettlementModal">关闭计划</button>
+        <button wx:if="{{plan.creator && plan.status === 'CLOSED'}}" class="ghost-btn action-grid-btn" bindtap="reopenPlan" loading="{{reopening}}" disabled="{{reopening}}">重新开启</button>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{plan.canViewExpenses}}">
+      <view class="section-row">
+        <view>
+          <view class="section-title">所有花费</view>
+          <view class="section-subtitle">共 {{expenseTotal}} 条</view>
+        </view>
+        <button class="ghost-btn export-btn" bindtap="exportExcel" loading="{{exporting}}" disabled="{{exporting}}">导出 Excel</button>
+      </view>
+
+      <scroll-view
+        wx:if="{{expenses.length}}"
+        class="expense-scroll"
+        scroll-y
+        enhanced
+        show-scrollbar="false"
+        lower-threshold="80"
+        bindscrolltolower="loadMoreExpenses"
+      >
+        <view class="expense-list">
+          <view class="expense-item" wx:for="{{expenses}}" wx:key="id">
+            <view class="expense-main">
+              <view class="expense-note">{{item.note}}</view>
+              <view class="expense-meta-row">
+                <view class="expense-meta">{{item.payerName}} · {{item.spentAtText}}</view>
+                <button wx:if="{{plan.creator || item.userId === currentUserId}}" class="mini-edit-btn" data-id="{{item.id}}" data-amount="{{item.amount}}" data-note="{{item.note}}" bindtap="openEditExpenseModal">修改</button>
+              </view>
+            </view>
+            <view class="expense-amount">¥{{item.amount}}</view>
+          </view>
+        </view>
+        <view wx:if="{{expenseHasNext}}" class="scroll-footer">
+          <button class="load-more-btn" bindtap="loadMoreExpenses" loading="{{loadingExpenses}}" disabled="{{loadingExpenses}}">
+            {{loadingExpenses ? '加载中...' : '加载更多'}}
+          </button>
+        </view>
+      </scroll-view>
+      <view wx:else class="empty-text">暂无花费记录</view>
+    </view>
+
+    <view class="card" wx:if="{{plan.status === 'CLOSED' && plan.settlements.length}}">
+      <view class="section-title">结算结果</view>
+      <view class="settlement-list">
+        <view class="settlement-item" wx:for="{{plan.settlements}}" wx:key="userId">
+          <view class="settlement-name">{{item.payerName}}</view>
+          <view class="settlement-meta">总支付 ¥{{item.paidTotal}}</view>
+          <view class="settlement-meta">人均承担 ¥{{item.perPersonTotal}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="loading-wrap">
+    <view class="loading-text">{{loadingPlan ? '加载中...' : '计划不存在或暂无权限查看'}}</view>
+  </view>
+
+  <view wx:if="{{showExpenseModal}}" class="modal-mask" bindtap="closeExpenseModal">
+    <view class="modal-card" catchtap="noop">
+      <view class="modal-title">新增花费</view>
+      <input class="modal-input" value="{{expenseForm.payerName}}" disabled placeholder="付款人" />
+      <input class="modal-input" type="digit" data-field="amount" value="{{expenseForm.amount}}" bindinput="onExpenseInput" placeholder="花费金额" />
+      <picker mode="date" value="{{expenseForm.spentAt}}" bindchange="onExpenseDate">
+        <view class="modal-input picker-input {{expenseForm.spentAt ? 'picker-filled' : ''}}">
+          {{expenseForm.spentAt || '请选择花费日期'}}
+        </view>
+      </picker>
+      <input class="modal-input" data-field="note" value="{{expenseForm.note}}" bindinput="onExpenseInput" placeholder="花费用途" />
+      <view class="modal-actions">
+        <button class="ghost-btn modal-btn" bindtap="closeExpenseModal" disabled="{{saving}}">取消</button>
+        <button class="primary-btn modal-btn" bindtap="addExpense" loading="{{saving}}" disabled="{{saving}}">保存</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showSettlementModal}}" class="modal-mask" bindtap="closeSettlementModal">
+    <view class="modal-card" catchtap="noop">
+      <view class="modal-title">关闭计划</view>
+      <view class="modal-tip">请输入最终分摊总人数，关闭后将不能继续新增花费。</view>
+      <input class="modal-input" type="number" value="{{participantCount}}" bindinput="onParticipantInput" placeholder="分摊总人数" />
+      <view class="modal-actions">
+        <button class="ghost-btn modal-btn" bindtap="closeSettlementModal" disabled="{{closing}}">取消</button>
+        <button class="primary-btn modal-btn" bindtap="closePlan" loading="{{closing}}" disabled="{{closing}}">确认关闭</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showEditExpenseModal}}" class="modal-mask" bindtap="closeEditExpenseModal">
+    <view class="modal-card" catchtap="noop">
+      <view class="modal-title">修改花费明细</view>
+      <input class="modal-input" type="digit" data-field="editExpenseAmount" value="{{editExpenseAmount}}" bindinput="onEditExpenseInput" placeholder="请输入花费金额" />
+      <input class="modal-input" data-field="editExpenseNote" value="{{editExpenseNote}}" bindinput="onEditExpenseInput" maxlength="255" placeholder="请输入花费用途" />
+      <view class="modal-actions">
+        <button class="ghost-btn modal-btn" bindtap="closeEditExpenseModal" disabled="{{updatingExpense}}">取消</button>
+        <button class="primary-btn modal-btn" bindtap="saveExpenseChanges" loading="{{updatingExpense}}" disabled="{{updatingExpense}}">保存</button>
+      </view>
+    </view>
+  </view>
+</view>
