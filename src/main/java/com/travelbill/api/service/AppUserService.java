@@ -27,6 +27,10 @@ import java.util.UUID;
 
 @Service
 public class AppUserService {
+    public static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
+    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_USER = "USER";
+
     private static final String DEFAULT_DISPLAY_NAME = "用户";
 
     private final AppUserRepository userRepository;
@@ -80,7 +84,7 @@ public class AppUserService {
         user.setUsername(username);
         user.setPasswordHash(passwordService.hash(request.password()));
         user.setDisplayName(normalizeDisplayName(request.displayName()));
-        user.setRole("USER");
+        user.setRole(ROLE_USER);
         AppUser saved = userRepository.save(user);
 
         invite.setUsedAt(LocalDateTime.now());
@@ -117,10 +121,29 @@ public class AppUserService {
     public AppUser requireAdmin(String userId) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "请先登录"));
-        if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+        if (!hasAdminRole(user)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "只有管理员可以执行此操作");
         }
         return user;
+    }
+
+    @Transactional(readOnly = true)
+    public AppUser requireSuperAdmin(String userId) {
+        AppUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "璇峰厛鐧诲綍"));
+        if (!hasSuperAdminRole(user)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有超级管理员可以执行此操作");
+        }
+        return user;
+    }
+
+    public boolean hasAdminRole(AppUser user) {
+        String role = user == null ? "" : user.getRole();
+        return ROLE_ADMIN.equalsIgnoreCase(role) || ROLE_SUPER_ADMIN.equalsIgnoreCase(role);
+    }
+
+    public boolean hasSuperAdminRole(AppUser user) {
+        return user != null && ROLE_SUPER_ADMIN.equalsIgnoreCase(user.getRole());
     }
 
     @Transactional(readOnly = true)
@@ -169,13 +192,17 @@ public class AppUserService {
     }
 
     @Transactional
-    public void deleteUserByAdmin(String currentUserId, String targetUserId) {
-        requireAdmin(currentUserId);
+    public void deleteUserBySuperAdmin(String currentUserId, String targetUserId) {
+        AppUser currentUser = requireSuperAdmin(currentUserId);
         if (currentUserId.equals(targetUserId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "不能删除当前登录的管理员账号");
         }
         AppUser targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "用户不存在"));
+
+        if (hasSuperAdminRole(targetUser) && !hasSuperAdminRole(currentUser)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有超级管理员可以删除超级管理员账号");
+        }
 
         List<TravelPlan> createdPlans = travelPlanRepository.findByCreatorId(targetUser.getId());
         for (TravelPlan plan : createdPlans) {

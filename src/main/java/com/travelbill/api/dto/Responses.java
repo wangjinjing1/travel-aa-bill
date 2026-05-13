@@ -77,6 +77,7 @@ public final class Responses {
             PlanStatus status,
             Integer participantCount,
             boolean creator,
+            boolean canManagePlan,
             boolean joined,
             boolean approved,
             boolean canViewExpenses,

@@ -94,7 +94,7 @@ public class TravelPlanService {
 
     @Transactional
     public PlanDetail updatePlan(Long id, String userId, UpdatePlanRequest request) {
-        TravelPlan plan = ownedPlan(id, userId);
+        TravelPlan plan = manageablePlan(id, userId);
         if (request.endDate().isBefore(request.startDate())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "结束日期不能早于开始日期");
         }
@@ -297,7 +297,7 @@ public class TravelPlanService {
 
     @Transactional
     public void deletePlan(Long id, String userId) {
-        TravelPlan plan = ownedPlan(id, userId);
+        TravelPlan plan = manageablePlan(id, userId);
         expenseRepository.deleteByPlan(plan);
         memberRepository.deleteByPlan(plan);
         planRepository.delete(plan);
@@ -425,6 +425,10 @@ public class TravelPlanService {
     }
 
     private List<TravelPlan> visiblePlansByScope(String userId, String scope) {
+        if ("all".equalsIgnoreCase(scope)) {
+            appUserService.requireSuperAdmin(userId);
+            return planRepository.findAll();
+        }
         if ("joined".equalsIgnoreCase(scope)) {
             return memberRepository.findByUserIdOrderByJoinedAtDesc(userId).stream()
                     .filter(member -> member.getStatus() == MemberStatus.APPROVED)
@@ -491,6 +495,15 @@ public class TravelPlanService {
         return plan;
     }
 
+    private TravelPlan manageablePlan(Long id, String userId) {
+        TravelPlan plan = planRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "旅行计划不存在"));
+        if (!plan.getCreatorId().equals(userId) && !isSuperAdmin(userId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有创建者或管理员可以执行此操作");
+        }
+        return plan;
+    }
+
     private TravelPlan findExpenseAccessiblePlan(Long id, String userId) {
         TravelPlan plan = planRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "旅游计划不存在"));
@@ -501,7 +514,7 @@ public class TravelPlanService {
     }
 
     private boolean canPreviewPlan(TravelPlan plan, String userId, boolean sharedPreview) {
-        if (userId != null && isCreatorOrApprovedMember(plan, userId)) {
+        if (userId != null && (isCreatorOrApprovedMember(plan, userId) || isSuperAdmin(userId))) {
             return true;
         }
         return sharedPreview;
@@ -522,6 +535,15 @@ public class TravelPlanService {
         return memberRepository.findByPlanIdAndUserId(plan.getId(), userId)
                 .map(member -> member.getStatus() == MemberStatus.APPROVED)
                 .orElse(false);
+    }
+
+    private boolean isSuperAdmin(String userId) {
+        try {
+            appUserService.requireSuperAdmin(userId);
+            return true;
+        } catch (ApiException exception) {
+            return false;
+        }
     }
 
     private void ensureCreatorMembership(TravelPlan plan, String userId, String displayName) {
@@ -554,6 +576,7 @@ public class TravelPlanService {
 
     private PlanDetail detailFor(TravelPlan plan, String userId, boolean sharedPreview) {
         boolean creator = userId != null && plan.getCreatorId().equals(userId);
+        boolean canManagePlan = creator || (userId != null && isSuperAdmin(userId));
         Optional<PlanMember> currentMembership = userId == null
                 ? Optional.empty()
                 : memberRepository.findByPlanIdAndUserId(plan.getId(), userId);
@@ -598,6 +621,7 @@ public class TravelPlanService {
                 plan.getStatus(),
                 plan.getParticipantCount(),
                 creator,
+                canManagePlan,
                 joined,
                 approved,
                 canViewExpenses,

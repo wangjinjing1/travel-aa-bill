@@ -82,9 +82,22 @@ createApp({
       const name = this.session.displayName || this.session.username || "用";
       return name.slice(0, 1).toUpperCase();
     },
+    isAdmin() {
+      return ["ADMIN", "SUPER_ADMIN"].includes(String(this.session.role || "").toUpperCase());
+    },
+    isSuperAdmin() {
+      return String(this.session.role || "").toUpperCase() === "SUPER_ADMIN";
+    },
+    roleText() {
+      const role = String(this.session.role || "").toUpperCase();
+      if (role === "SUPER_ADMIN") return "超级管理员";
+      if (role === "ADMIN") return "管理员";
+      return "成员";
+    },
     showJoinButton() {
       return this.currentPlan
         && !this.currentPlan.creator
+        && !this.currentPlan.canManagePlan
         && !this.currentPlan.approved
         && Boolean(this.sharedToken || this.currentPlan.shareToken);
     },
@@ -169,6 +182,10 @@ createApp({
       try {
         const profile = await this.api("/api/me");
         this.updateSessionProfile(profile);
+        if (!this.isSuperAdmin && this.view === "users") {
+          this.view = "plans";
+          this.users = [];
+        }
       } catch (error) {
         this.showError(error);
       }
@@ -253,6 +270,9 @@ createApp({
       this.clearSession();
     },
     async loadPlans(page = 0) {
+      if (this.planScope === "all" && !this.isSuperAdmin) {
+        this.planScope = "created";
+      }
       try {
         const query = new URLSearchParams({
           scope: this.planScope,
@@ -267,6 +287,7 @@ createApp({
       }
     },
     switchPlanScope(scope) {
+      if (scope === "all" && !this.isSuperAdmin) return;
       if (this.planScope === scope) return;
       this.planScope = scope;
       this.loadPlans(0);
@@ -278,12 +299,22 @@ createApp({
       this.loadPlans(this.plans.page || 0);
     },
     async openUserManagement() {
+      if (!this.isSuperAdmin) {
+        this.toast("只有超级管理员可以访问用户管理");
+        this.goPlans();
+        return;
+      }
       this.currentPlan = null;
       this.expensePage = emptyPage();
       this.view = "users";
       await this.loadUsers();
     },
     async loadUsers() {
+      if (!this.isSuperAdmin) {
+        this.users = [];
+        this.toast("只有超级管理员可以访问用户管理");
+        return;
+      }
       try {
         const data = await this.api("/api/admin/users");
         this.users = Array.isArray(data) ? data : [];
@@ -393,7 +424,7 @@ createApp({
         const suffix = token ? `?shareToken=${encodeURIComponent(token)}` : "";
         this.currentPlan = await this.api(`/api/plans/${id}${suffix}`);
         this.sharedPlanId = String(id);
-        if (token) this.sharedToken = token;
+        this.sharedToken = token || "";
         this.view = "detail";
         if (this.currentPlan.approved || this.currentPlan.creator) {
           await this.loadMembers("APPROVED", 0);
@@ -642,6 +673,9 @@ createApp({
     canEditExpense(expense) {
       return Boolean(this.currentPlan?.creator || expense.userId === this.session.userId);
     },
+    hasExpenseNote(note) {
+      return String(note || "").trim().length > 0;
+    },
     shouldShowNoteView(note) {
       return String(note || "").length > 12;
     },
@@ -669,7 +703,7 @@ createApp({
       }
     },
     async deletePlan() {
-      if (!this.currentPlan?.creator) return;
+      if (!this.currentPlan?.canManagePlan) return;
       const confirmed = window.confirm("删除计划会同时删除成员申请、花费明细等关联单据，确认删除吗？");
       if (!confirmed) return;
       try {
@@ -728,6 +762,11 @@ createApp({
     },
     statusText(status) {
       return status === "CLOSED" ? "已关闭" : "进行中";
+    },
+    emptyPlanText() {
+      if (this.planScope === "all") return "还没有任何计划。";
+      if (this.planScope === "created") return "还没有创建过计划。";
+      return "还没有加入任何计划，打开创建者分享的链接后可以申请加入。";
     },
     money(value) {
       const number = Number(value || 0);

@@ -18,7 +18,7 @@
               <div class="avatar">{{ userInitial }}</div>
               <div>
                 <div class="profile-name">{{ session.displayName || session.username }}</div>
-                <div class="muted small">{{ session.role === 'ADMIN' ? '管理员' : '成员' }}</div>
+                <div class="muted small">{{ roleText }}</div>
               </div>
             </div>
             <div class="profile-actions">
@@ -30,9 +30,9 @@
 
         <nav>
           <button :class="{active:view==='plans'}" @click="goPlans">计划管理</button>
-          <button v-if="session.role==='ADMIN'" :class="{active:view==='users'}" @click="openUserManagement">用户管理</button>
-          <button v-if="session.role==='ADMIN'" :class="{active:view==='blacklist'}" @click="openIpBlacklist">IP黑名单</button>
-          <button v-if="session.role==='ADMIN'" :class="{active:view==='invite'}" @click="view='invite'">邀请注册</button>
+          <button v-if="isSuperAdmin" :class="{active:view==='users'}" @click="openUserManagement">用户管理</button>
+          <button v-if="isAdmin" :class="{active:view==='blacklist'}" @click="openIpBlacklist">IP黑名单</button>
+          <button v-if="isAdmin" :class="{active:view==='invite'}" @click="view='invite'">邀请注册</button>
         </nav>
       </aside>
 
@@ -50,6 +50,7 @@
             <div class="segmented">
               <button :class="{active: planScope === 'created'}" @click="switchPlanScope('created')">我创建的计划</button>
               <button :class="{active: planScope === 'joined'}" @click="switchPlanScope('joined')">我加入的计划</button>
+              <button v-if="isSuperAdmin" :class="{active: planScope === 'all'}" @click="switchPlanScope('all')">全部计划</button>
             </div>
             <div class="filters">
               <input v-model="keyword" placeholder="按旅行计划名称搜索" @keyup.enter="loadPlans(0)" />
@@ -68,7 +69,7 @@
             </article>
           </div>
           <div class="empty" v-else>
-            {{ planScope === 'created' ? '还没有创建过计划。' : '还没有加入任何计划，打开创建者分享的链接后可以申请加入。' }}
+            {{ emptyPlanText() }}
           </div>
 
           <div class="pager" v-if="plans.totalPages > 1">
@@ -94,14 +95,14 @@
             </div>
 
             <div class="actions">
-              <button v-if="currentPlan.creator" @click="openPlanEditor">编辑计划</button>
+              <button v-if="currentPlan.canManagePlan" @click="openPlanEditor">编辑计划</button>
               <button @click="copyShare">复制分享链接</button>
               <button v-if="showJoinButton" :disabled="joinButtonDisabled || isJoining" @click="joinPlan">
                 {{ joinButtonText }}
               </button>
               <button v-if="currentPlan.creator && currentPlan.status==='OPEN'" @click="closePlan">关闭计划</button>
               <button v-if="currentPlan.creator && currentPlan.status==='CLOSED'" @click="reopenPlan">重新打开</button>
-              <button v-if="currentPlan.creator" class="danger" @click="deletePlan">删除计划</button>
+              <button v-if="currentPlan.canManagePlan" class="danger" @click="deletePlan">删除计划</button>
             </div>
 
             <div class="hint" v-if="currentPlan.membershipStatus === 'PENDING' && !currentPlan.approved">
@@ -184,7 +185,7 @@
                   <span class="expense-date">{{ expense.spentAt }}</span>
                   <span class="expense-note">
                     <span class="expense-note-text">{{ expense.note }}</span>
-                    <button class="link-btn note-view" v-if="shouldShowNoteView(expense.note)" @click="openExpenseNote(expense.note)">查看</button>
+                    <button class="link-btn note-view" :class="{ 'note-view-optional': !shouldShowNoteView(expense.note) }" v-if="hasExpenseNote(expense.note)" @click="openExpenseNote(expense.note)">查看</button>
                   </span>
                   <span class="row tight expense-actions">
                     <button class="small-btn" v-if="canEditExpense(expense)" @click="openExpenseEdit(expense)">修改</button>
@@ -218,7 +219,7 @@
           </article>
         </section>
 
-        <section v-if="view==='users'" class="workspace">
+        <section v-if="view==='users' && isSuperAdmin" class="workspace">
           <article class="panel admin-panel">
             <div class="row between wrap">
               <div>
@@ -239,7 +240,8 @@
               <div class="user-row" v-for="user in users" :key="user.userId">
                 <strong>{{ user.username }}</strong>
                 <span>{{ user.displayName }}</span>
-                <select :value="user.role" :disabled="user.userId === session.userId || roleSavingUserId === user.userId" @change="changeUserRole(user, $event.target.value)">
+                <select :value="user.role" :disabled="user.userId === session.userId || user.role === 'SUPER_ADMIN' || roleSavingUserId === user.userId" @change="changeUserRole(user, $event.target.value)">
+                  <option v-if="user.role === 'SUPER_ADMIN'" value="SUPER_ADMIN">超级管理员</option>
                   <option value="ADMIN">管理员</option>
                   <option value="USER">普通用户</option>
                 </select>
@@ -248,7 +250,7 @@
                   <span class="muted small" v-if="user.userId === session.userId">当前账号</span>
                   <span class="muted small" v-else-if="roleSavingUserId === user.userId">保存中</span>
                   <span class="muted small" v-else>可修改角色</span>
-                  <button class="small-btn danger" v-if="user.userId !== session.userId" @click="openDeleteUserConfirm(user)">删除</button>
+                  <button class="small-btn danger" v-if="user.userId !== session.userId && user.role !== 'SUPER_ADMIN'" @click="openDeleteUserConfirm(user)">删除</button>
                 </span>
               </div>
             </div>

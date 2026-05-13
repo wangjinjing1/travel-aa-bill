@@ -24,9 +24,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin/users")
 public class AdminUserController {
-    private static final String ROLE_ADMIN = "ADMIN";
-    private static final String ROLE_USER = "USER";
-
     private final AppUserRepository userRepository;
     private final AppUserService appUserService;
 
@@ -37,7 +34,7 @@ public class AdminUserController {
 
     @GetMapping
     public List<AdminUserView> users(HttpServletRequest request) {
-        requireAdmin(request);
+        requireSuperAdmin(request);
         return userRepository.findAll(Sort.by(Sort.Order.desc("createdAt"))).stream()
                 .map(this::toUserView)
                 .toList();
@@ -49,21 +46,24 @@ public class AdminUserController {
             @Valid @RequestBody UpdateUserRoleRequest request,
             HttpServletRequest httpRequest
     ) {
-        requireAdmin(httpRequest);
+        AppUser currentUser = appUserService.requireSuperAdmin(currentUserId(httpRequest));
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "用户不存在"));
+        if (appUserService.hasSuperAdminRole(user) && !appUserService.hasSuperAdminRole(currentUser)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有超级管理员可以修改超级管理员账号");
+        }
         user.setRole(normalizeRole(request.role()));
         return toUserView(userRepository.save(user));
     }
 
     @PostMapping("/{userId}/delete")
     public Map<String, Boolean> deleteUser(@PathVariable String userId, HttpServletRequest httpRequest) {
-        appUserService.deleteUserByAdmin(currentUserId(httpRequest), userId);
+        appUserService.deleteUserBySuperAdmin(currentUserId(httpRequest), userId);
         return Map.of("success", true);
     }
 
-    private void requireAdmin(HttpServletRequest request) {
-        appUserService.requireAdmin(currentUserId(request));
+    private void requireSuperAdmin(HttpServletRequest request) {
+        appUserService.requireSuperAdmin(currentUserId(request));
     }
 
     private String currentUserId(HttpServletRequest request) {
@@ -79,7 +79,7 @@ public class AdminUserController {
             throw new ApiException(HttpStatus.BAD_REQUEST, "请选择用户角色");
         }
         String normalizedRole = role.trim().toUpperCase();
-        if (!ROLE_ADMIN.equals(normalizedRole) && !ROLE_USER.equals(normalizedRole)) {
+        if (!AppUserService.ROLE_ADMIN.equals(normalizedRole) && !AppUserService.ROLE_USER.equals(normalizedRole)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "用户角色只能是管理员或普通用户");
         }
         return normalizedRole;

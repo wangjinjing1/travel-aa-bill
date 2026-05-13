@@ -33,12 +33,16 @@ public class AdminBootstrapRunner implements ApplicationRunner {
     @Transactional
     public void run(ApplicationArguments args) {
         userRepository.findByUsername(adminUsername).ifPresentOrElse(user -> {
+            if (!AppUserService.ROLE_SUPER_ADMIN.equalsIgnoreCase(user.getRole())) {
+                user.setRole(AppUserService.ROLE_SUPER_ADMIN);
+                userRepository.save(user);
+            }
         }, () -> {
             AppUser admin = new AppUser();
             admin.setUsername(adminUsername);
             admin.setPasswordHash(passwordService.hash(adminPassword));
             admin.setDisplayName(adminUsername);
-            admin.setRole("ADMIN");
+            admin.setRole(AppUserService.ROLE_SUPER_ADMIN);
             userRepository.save(admin);
         });
     }

@@ -27,7 +27,7 @@ docker compose up -d --build
 http://localhost:24975/
 ```
 
-默认管理员账号密码在 `.env` 的 `APP_ADMIN_USERNAME` 和 `APP_ADMIN_PASSWORD` 中配置。应用启动时只会在数据库中不存在该管理员账号时创建；如果已存在，不会覆盖数据库里的密码。
+默认超级管理员账号密码在 `.env` 的 `APP_ADMIN_USERNAME` 和 `APP_ADMIN_PASSWORD` 中配置。应用启动时会确保该账号角色为超级管理员；如果账号已存在，不会覆盖数据库里的密码。
 
 ## 功能
 
