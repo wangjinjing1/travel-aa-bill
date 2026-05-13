@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="旅费AA小助手">
+  <rect width="64" height="64" rx="14" fill="#0f766e"/>
+  <path d="M18 18h28a5 5 0 0 1 5 5v22a5 5 0 0 1-5 5H18a5 5 0 0 1-5-5V23a5 5 0 0 1 5-5z" fill="#ffffff"/>
+  <path d="M19 26h26M19 34h26M19 42h16" fill="none" stroke="#d9e1e8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M23 47 32 17l9 30" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27 36h10" fill="none" stroke="#0f766e" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="47" cy="19" r="8" fill="#facc15"/>
+  <path d="M44 19h6M47 16v6" fill="none" stroke="#854d0e" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

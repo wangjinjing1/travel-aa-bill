@@ -44,19 +44,6 @@ CREATE TABLE IF NOT EXISTS travel_plan (
   UNIQUE KEY uk_plan_creator_request (creator_id, request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS travel_plan_image (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  plan_id BIGINT NOT NULL,
-  filename VARCHAR(120) NOT NULL,
-  content_type VARCHAR(80) NOT NULL,
-  data LONGBLOB NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_travel_plan_image_plan (plan_id),
-  CONSTRAINT fk_travel_plan_image_plan
-    FOREIGN KEY (plan_id) REFERENCES travel_plan(id)
-    ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS plan_member (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   plan_id BIGINT NOT NULL,
@@ -68,6 +55,7 @@ CREATE TABLE IF NOT EXISTS plan_member (
   reviewed_by VARCHAR(80) NULL,
   UNIQUE KEY uk_plan_member (plan_id, user_id),
   INDEX idx_plan_member_user (user_id),
+  INDEX idx_plan_member_reviewed_by (reviewed_by),
   CONSTRAINT fk_plan_member_plan
     FOREIGN KEY (plan_id) REFERENCES travel_plan(id)
     ON DELETE CASCADE

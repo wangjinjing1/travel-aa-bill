@@ -24,11 +24,12 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         fillMissingAccountColumns();
         addPlanMemberApprovalColumnsIfMissing();
         addRegistrationInviteTableIfMissing();
-        addTravelPlanImageTableIfMissing();
         addIpBlacklistTableIfMissing();
+        dropTravelPlanImageTableIfPresent();
         dropLegacyIpAccessCounterTableIfPresent();
         dropLegacyDisplayNameIndexIfPresent();
         addUsernameIndexIfMissing();
+        addPlanMemberReviewedByIndexIfMissing();
     }
 
     private void addAvatarUrlColumnIfMissing() {
@@ -107,21 +108,8 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
                 """);
     }
 
-    private void addTravelPlanImageTableIfMissing() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS travel_plan_image (
-                  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                  plan_id BIGINT NOT NULL,
-                  filename VARCHAR(120) NOT NULL,
-                  content_type VARCHAR(80) NOT NULL,
-                  data LONGBLOB NOT NULL,
-                  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  INDEX idx_travel_plan_image_plan (plan_id),
-                  CONSTRAINT fk_travel_plan_image_plan
-                    FOREIGN KEY (plan_id) REFERENCES travel_plan(id)
-                    ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """);
+    private void dropTravelPlanImageTableIfPresent() {
+        dropTableIfExists("travel_plan_image");
     }
 
     private void dropLegacyIpAccessCounterTableIfPresent() {
@@ -173,6 +161,22 @@ public class DatabaseMigrationRunner implements ApplicationRunner {
         );
         if (count != null && count == 0) {
             jdbcTemplate.execute("ALTER TABLE app_user ADD UNIQUE INDEX uk_app_user_username (username)");
+        }
+    }
+
+    private void addPlanMemberReviewedByIndexIfMissing() {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'plan_member'
+                  AND INDEX_NAME = 'idx_plan_member_reviewed_by'
+                """,
+                Integer.class
+        );
+        if (count != null && count == 0) {
+            jdbcTemplate.execute("ALTER TABLE plan_member ADD INDEX idx_plan_member_reviewed_by (reviewed_by)");
         }
     }
 }

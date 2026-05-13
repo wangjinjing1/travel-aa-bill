@@ -1,5 +1,6 @@
 package com.travelbill.api;
 
+import com.travelbill.api.repository.AppUserRepository;
 import com.travelbill.api.service.ApiException;
 import com.travelbill.api.service.AuthTokenService;
 import com.travelbill.api.service.IpSecurityService;
@@ -17,14 +18,16 @@ import java.util.regex.Pattern;
 @Component
 public class ApiGuardFilter extends OncePerRequestFilter {
     private static final Pattern SHARE_PREVIEW_PATH = Pattern.compile("^/api/plans/\\d+$");
-    private static final Pattern SHARE_IMAGE_PATH = Pattern.compile("^/api/plans/\\d+/images/\\d+$");
+    private static final Pattern INVITE_STATUS_PATH = Pattern.compile("^/api/auth/invites/[A-Za-z0-9]+/status$");
 
     private final AuthTokenService tokenService;
     private final IpSecurityService ipSecurityService;
+    private final AppUserRepository userRepository;
 
-    public ApiGuardFilter(AuthTokenService tokenService, IpSecurityService ipSecurityService) {
+    public ApiGuardFilter(AuthTokenService tokenService, IpSecurityService ipSecurityService, AppUserRepository userRepository) {
         this.tokenService = tokenService;
         this.ipSecurityService = ipSecurityService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -88,13 +91,15 @@ public class ApiGuardFilter extends OncePerRequestFilter {
         if (uri.equals("/api/auth/login") || uri.equals("/api/auth/register")) {
             return false;
         }
+        if ("GET".equalsIgnoreCase(request.getMethod()) && INVITE_STATUS_PATH.matcher(uri).matches()) {
+            return false;
+        }
         return !requiresOptionalAuth(request);
     }
 
     private boolean requiresOptionalAuth(HttpServletRequest request) {
         return "GET".equalsIgnoreCase(request.getMethod())
-                && (SHARE_PREVIEW_PATH.matcher(request.getRequestURI()).matches()
-                || SHARE_IMAGE_PATH.matcher(request.getRequestURI()).matches());
+                && SHARE_PREVIEW_PATH.matcher(request.getRequestURI()).matches();
     }
 
     private String resolveUserId(HttpServletRequest request, boolean required) {
@@ -105,7 +110,11 @@ public class ApiGuardFilter extends OncePerRequestFilter {
             }
             return null;
         }
-        return tokenService.verify(authorization.substring("Bearer ".length()));
+        String userId = tokenService.verify(authorization.substring("Bearer ".length()));
+        if (!userRepository.existsById(userId)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "用户不存在");
+        }
+        return userId;
     }
 
     private boolean tooManyRequests(HttpServletRequest request, String ip) {

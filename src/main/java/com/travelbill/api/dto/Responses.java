@@ -21,6 +21,15 @@ public final class Responses {
     ) {
     }
 
+    public record AdminUserView(
+            String userId,
+            String username,
+            String displayName,
+            String role,
+            LocalDateTime createdAt
+    ) {
+    }
+
     public record AuthSession(
             String userId,
             String username,
@@ -34,6 +43,13 @@ public final class Responses {
     public record InviteLink(
             String token,
             String url
+    ) {
+    }
+
+    public record InviteStatus(
+            boolean valid,
+            boolean used,
+            String message
     ) {
     }
 
@@ -55,7 +71,6 @@ public final class Responses {
             LocalDate startDate,
             LocalDate endDate,
             String description,
-            List<PlanImageView> images,
             String creatorId,
             String creatorName,
             String shareToken,
@@ -71,14 +86,6 @@ public final class Responses {
             List<MemberView> pendingMembers,
             List<ExpenseView> expenses,
             List<SettlementView> settlements
-    ) {
-    }
-
-    public record PlanImageView(
-            Long id,
-            String filename,
-            String contentType,
-            String url
     ) {
     }
 

@@ -4,10 +4,13 @@ import com.travelbill.api.dto.Requests.PasswordLoginRequest;
 import com.travelbill.api.dto.Requests.RegisterWithInviteRequest;
 import com.travelbill.api.dto.Responses.AuthSession;
 import com.travelbill.api.dto.Responses.InviteLink;
+import com.travelbill.api.dto.Responses.InviteStatus;
 import com.travelbill.api.service.ApiException;
 import com.travelbill.api.service.AppUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +41,11 @@ public class AuthController {
         String baseUrl = request.getScheme() + "://" + request.getServerName()
                 + (isDefaultPort(request) ? "" : ":" + request.getServerPort());
         return appUserService.createInvite(currentUser(request), baseUrl);
+    }
+
+    @GetMapping("/invites/{token}/status")
+    public InviteStatus inviteStatus(@PathVariable String token) {
+        return appUserService.inviteStatus(token);
     }
 
     private String currentUser(HttpServletRequest request) {

@@ -8,6 +8,7 @@ import com.travelbill.api.domain.TravelPlan;
 import com.travelbill.api.dto.Requests.RegisterWithInviteRequest;
 import com.travelbill.api.dto.Responses.AuthSession;
 import com.travelbill.api.dto.Responses.InviteLink;
+import com.travelbill.api.dto.Responses.InviteStatus;
 import com.travelbill.api.dto.Responses.UserProfile;
 import com.travelbill.api.repository.AppUserRepository;
 import com.travelbill.api.repository.PlanMemberRepository;
@@ -101,6 +102,18 @@ public class AppUserService {
     }
 
     @Transactional(readOnly = true)
+    public InviteStatus inviteStatus(String token) {
+        if (!StringUtils.hasText(token)) {
+            return new InviteStatus(false, false, "注册链接无效");
+        }
+        return inviteRepository.findById(token.trim())
+                .map(invite -> invite.getUsedAt() == null
+                        ? new InviteStatus(true, false, "注册链接可用")
+                        : new InviteStatus(false, true, "注册链接已被使用"))
+                .orElseGet(() -> new InviteStatus(false, false, "注册链接无效"));
+    }
+
+    @Transactional(readOnly = true)
     public AppUser requireAdmin(String userId) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "请先登录"));
@@ -153,6 +166,29 @@ public class AppUserService {
 
         AppUser saved = changed ? userRepository.save(user) : user;
         return new UserProfile(saved.getId(), saved.getDisplayName(), saved.getAvatarUrl(), saved.getUsername(), saved.getRole());
+    }
+
+    @Transactional
+    public void deleteUserByAdmin(String currentUserId, String targetUserId) {
+        requireAdmin(currentUserId);
+        if (currentUserId.equals(targetUserId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "不能删除当前登录的管理员账号");
+        }
+        AppUser targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "用户不存在"));
+
+        List<TravelPlan> createdPlans = travelPlanRepository.findByCreatorId(targetUser.getId());
+        for (TravelPlan plan : createdPlans) {
+            travelExpenseRepository.deleteByPlan(plan);
+            planMemberRepository.deleteByPlan(plan);
+        }
+        travelPlanRepository.deleteAll(createdPlans);
+
+        travelExpenseRepository.deleteByUserId(targetUser.getId());
+        planMemberRepository.deleteAllByUserId(targetUser.getId());
+        planMemberRepository.clearReviewedBy(targetUser.getId());
+        inviteRepository.deleteByCreatedByOrUsedBy(targetUser.getId(), targetUser.getId());
+        userRepository.delete(targetUser);
     }
 
     private AuthSession toAuthSession(AppUser user) {

@@ -5,34 +5,32 @@ import com.travelbill.api.domain.PlanMember;
 import com.travelbill.api.domain.PlanStatus;
 import com.travelbill.api.domain.TravelExpense;
 import com.travelbill.api.domain.TravelPlan;
-import com.travelbill.api.domain.TravelPlanImage;
 import com.travelbill.api.dto.Requests.ClosePlanRequest;
 import com.travelbill.api.dto.Requests.CreateExpenseRequest;
 import com.travelbill.api.dto.Requests.CreatePlanRequest;
 import com.travelbill.api.dto.Requests.UpdateExpenseRequest;
+import com.travelbill.api.dto.Requests.UpdatePlanRequest;
 import com.travelbill.api.dto.Responses.ExpensePage;
 import com.travelbill.api.dto.Responses.ExpenseView;
 import com.travelbill.api.dto.Responses.MemberPage;
 import com.travelbill.api.dto.Responses.MemberView;
 import com.travelbill.api.dto.Responses.PlanDetail;
-import com.travelbill.api.dto.Responses.PlanImageView;
 import com.travelbill.api.dto.Responses.PlanPage;
 import com.travelbill.api.dto.Responses.PlanSummary;
 import com.travelbill.api.dto.Responses.SettlementView;
 import com.travelbill.api.repository.PlanMemberRepository;
 import com.travelbill.api.repository.TravelExpenseRepository;
-import com.travelbill.api.repository.TravelPlanImageRepository;
 import com.travelbill.api.repository.TravelPlanRepository;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,20 +51,17 @@ public class TravelPlanService {
     private final TravelPlanRepository planRepository;
     private final PlanMemberRepository memberRepository;
     private final TravelExpenseRepository expenseRepository;
-    private final TravelPlanImageRepository imageRepository;
     private final AppUserService appUserService;
 
     public TravelPlanService(
             TravelPlanRepository planRepository,
             PlanMemberRepository memberRepository,
             TravelExpenseRepository expenseRepository,
-            TravelPlanImageRepository imageRepository,
             AppUserService appUserService
     ) {
         this.planRepository = planRepository;
         this.memberRepository = memberRepository;
         this.expenseRepository = expenseRepository;
-        this.imageRepository = imageRepository;
         this.appUserService = appUserService;
     }
 
@@ -98,45 +93,17 @@ public class TravelPlanService {
     }
 
     @Transactional
-    public PlanDetail addPlanImage(Long planId, String userId, MultipartFile file) {
-        TravelPlan plan = ownedPlan(planId, userId);
-        if (file == null || file.isEmpty()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "请选择要上传的图片");
+    public PlanDetail updatePlan(Long id, String userId, UpdatePlanRequest request) {
+        TravelPlan plan = ownedPlan(id, userId);
+        if (request.endDate().isBefore(request.startDate())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "结束日期不能早于开始日期");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "只能上传图片文件");
-        }
-        if (file.getSize() > 5 * 1024 * 1024) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "图片不能超过5MB");
-        }
-        try {
-            TravelPlanImage image = new TravelPlanImage();
-            image.setPlan(plan);
-            image.setFilename(StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "plan-image");
-            image.setContentType(contentType);
-            image.setData(file.getBytes());
-            imageRepository.save(image);
-            return detailFor(plan, userId, false);
-        } catch (IOException exception) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "图片上传失败");
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public TravelPlanImage getPlanImage(Long planId, Long imageId, String userId, String shareToken) {
-        TravelPlan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "旅游计划不存在"));
-        boolean sharedPreview = StringUtils.hasText(shareToken);
-        if (!canPreviewPlan(plan, userId, sharedPreview)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "无权查看该图片");
-        }
-        if (sharedPreview && !plan.getShareToken().equals(shareToken)) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "分享链接无效");
-        }
-        return imageRepository.findById(imageId)
-                .filter(image -> image.getPlan().getId().equals(planId))
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "图片不存在"));
+        plan.setDestination(request.destination().trim());
+        plan.setStartDate(request.startDate());
+        plan.setEndDate(request.endDate());
+        plan.setDescription(request.description().trim());
+        planRepository.save(plan);
+        return detailFor(plan, userId, false);
     }
 
     @Transactional(readOnly = true)
@@ -300,7 +267,21 @@ public class TravelPlanService {
         }
         expense.setAmount(request.amount().setScale(2, RoundingMode.HALF_UP));
         expense.setNote(request.note().trim());
+        expense.setSpentAt(request.spentAt());
         expenseRepository.save(expense);
+        return detailFor(plan, userId, false);
+    }
+
+    @Transactional
+    public PlanDetail deleteExpense(Long planId, Long expenseId, String userId) {
+        TravelPlan plan = findExpenseAccessiblePlan(planId, userId);
+        TravelExpense expense = expenseRepository.findById(expenseId)
+                .filter(item -> item.getPlan().getId().equals(plan.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "花费记录不存在"));
+        if (!plan.getCreatorId().equals(userId) && !expense.getUserId().equals(userId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只有计划创建人或花费创建人可以删除该条明细");
+        }
+        expenseRepository.delete(expense);
         return detailFor(plan, userId, false);
     }
 
@@ -318,18 +299,31 @@ public class TravelPlanService {
     public void deletePlan(Long id, String userId) {
         TravelPlan plan = ownedPlan(id, userId);
         expenseRepository.deleteByPlan(plan);
-        imageRepository.deleteByPlan(plan);
         memberRepository.deleteByPlan(plan);
         planRepository.delete(plan);
     }
 
     @Transactional(readOnly = true)
     public ExpensePage expenses(Long id, String userId, int page, int size) {
+        return expenses(id, userId, page, size, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ExpensePage expenses(
+            Long id,
+            String userId,
+            int page,
+            int size,
+            String payerName,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
         TravelPlan plan = findExpenseAccessiblePlan(id, userId);
+        validateExpenseDateRange(startDate, endDate);
         int safePage = Math.max(0, page);
         int safeSize = Math.min(50, Math.max(1, size));
-        var result = expenseRepository.findByPlan(
-                plan,
+        var result = expenseRepository.findAll(
+                expenseFilter(plan, payerName, startDate, endDate),
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Order.desc("spentAt"), Sort.Order.desc("createdAt")))
         );
         return new ExpensePage(
@@ -374,8 +368,17 @@ public class TravelPlanService {
 
     @Transactional(readOnly = true)
     public byte[] exportExpenses(Long id, String userId) {
+        return exportExpenses(id, userId, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportExpenses(Long id, String userId, String payerName, LocalDate startDate, LocalDate endDate) {
         TravelPlan plan = findExpenseAccessiblePlan(id, userId);
-        List<TravelExpense> expenses = expenseRepository.findByPlanOrderBySpentAtDescCreatedAtDesc(plan);
+        validateExpenseDateRange(startDate, endDate);
+        List<TravelExpense> expenses = expenseRepository.findAll(
+                expenseFilter(plan, payerName, startDate, endDate),
+                Sort.by(Sort.Order.desc("spentAt"), Sort.Order.desc("createdAt"))
+        );
         int divisor = settlementDivisor(plan);
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -589,9 +592,6 @@ public class TravelPlanService {
                 plan.getStartDate(),
                 plan.getEndDate(),
                 plan.getDescription(),
-                imageRepository.findByPlanOrderByCreatedAtAsc(plan).stream()
-                        .map(image -> toPlanImageView(plan, image))
-                        .toList(),
                 plan.getCreatorId(),
                 plan.getCreatorName(),
                 plan.getShareToken(),
@@ -607,15 +607,6 @@ public class TravelPlanService {
                 pendingMembers,
                 expenses,
                 settlements
-        );
-    }
-
-    private PlanImageView toPlanImageView(TravelPlan plan, TravelPlanImage image) {
-        return new PlanImageView(
-                image.getId(),
-                image.getFilename(),
-                image.getContentType(),
-                "/api/plans/" + plan.getId() + "/images/" + image.getId()
         );
     }
 
@@ -668,6 +659,34 @@ public class TravelPlanService {
 
     private BigDecimal perPerson(BigDecimal amount, int divisor) {
         return amount.divide(BigDecimal.valueOf(divisor), 2, RoundingMode.HALF_UP);
+    }
+
+    private Specification<TravelExpense> expenseFilter(
+            TravelPlan plan,
+            String payerName,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        return (root, query, builder) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            predicates.add(builder.equal(root.get("plan"), plan));
+            if (StringUtils.hasText(payerName)) {
+                predicates.add(builder.like(root.get("payerName"), "%" + payerName.trim() + "%"));
+            }
+            if (startDate != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("spentAt"), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("spentAt"), endDate));
+            }
+            return builder.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+    }
+
+    private void validateExpenseDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "结束日期不能早于开始日期");
+        }
     }
 
     private MemberStatus parseMemberStatus(String status) {

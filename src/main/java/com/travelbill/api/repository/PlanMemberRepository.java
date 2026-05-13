@@ -6,6 +6,8 @@ import com.travelbill.api.domain.TravelPlan;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,14 @@ public interface PlanMemberRepository extends JpaRepository<PlanMember, Long> {
     boolean existsByPlanIdAndUserId(Long planId, String userId);
 
     void deleteByPlan(TravelPlan plan);
+
+    @Modifying
+    @Query("delete from PlanMember member where member.userId = :userId")
+    void deleteAllByUserId(String userId);
+
+    @Modifying
+    @Query("update PlanMember member set member.reviewedBy = null where member.reviewedBy = :userId")
+    void clearReviewedBy(String userId);
 
     Optional<PlanMember> findByPlanIdAndUserId(Long planId, String userId);
 

@@ -4,6 +4,7 @@ import com.travelbill.api.dto.Requests.ClosePlanRequest;
 import com.travelbill.api.dto.Requests.CreateExpenseRequest;
 import com.travelbill.api.dto.Requests.CreatePlanRequest;
 import com.travelbill.api.dto.Requests.UpdateExpenseRequest;
+import com.travelbill.api.dto.Requests.UpdatePlanRequest;
 import com.travelbill.api.dto.Responses.ExpensePage;
 import com.travelbill.api.dto.Responses.MemberPage;
 import com.travelbill.api.dto.Responses.PlanDetail;
@@ -11,7 +12,6 @@ import com.travelbill.api.dto.Responses.PlanPage;
 import com.travelbill.api.dto.Responses.PlanSummary;
 import com.travelbill.api.service.ApiException;
 import com.travelbill.api.service.TravelPlanService;
-import com.travelbill.api.domain.TravelPlanImage;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -99,26 +98,13 @@ public class TravelPlanController {
         return service.requestJoin(id, currentUser(httpRequest), shareToken);
     }
 
-    @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public PlanDetail uploadPlanImage(
+    @PostMapping("/{id}/update")
+    public PlanDetail updatePlan(
             @PathVariable Long id,
             jakarta.servlet.http.HttpServletRequest httpRequest,
-            @RequestParam("file") MultipartFile file
+            @Valid @RequestBody UpdatePlanRequest request
     ) {
-        return service.addPlanImage(id, currentUser(httpRequest), file);
-    }
-
-    @GetMapping("/{id}/images/{imageId}")
-    public ResponseEntity<byte[]> planImage(
-            @PathVariable Long id,
-            @PathVariable Long imageId,
-            jakarta.servlet.http.HttpServletRequest httpRequest,
-            @RequestParam(value = "shareToken", required = false) String shareToken
-    ) {
-        TravelPlanImage image = service.getPlanImage(id, imageId, optionalCurrentUser(httpRequest), shareToken);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(image.getContentType()))
-                .body(image.getData());
+        return service.updatePlan(id, currentUser(httpRequest), request);
     }
 
     @PostMapping("/{id}/members/{memberId}/approve")
@@ -170,22 +156,37 @@ public class TravelPlanController {
         return service.updateExpense(id, expenseId, currentUser(httpRequest), request);
     }
 
+    @PostMapping("/{id}/expenses/{expenseId}/delete")
+    public PlanDetail deleteExpense(
+            @PathVariable Long id,
+            @PathVariable Long expenseId,
+            jakarta.servlet.http.HttpServletRequest httpRequest
+    ) {
+        return service.deleteExpense(id, expenseId, currentUser(httpRequest));
+    }
+
     @GetMapping("/{id}/expenses")
     public ExpensePage expenses(
             @PathVariable Long id,
             jakarta.servlet.http.HttpServletRequest httpRequest,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String payerName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        return service.expenses(id, currentUser(httpRequest), page, size);
+        return service.expenses(id, currentUser(httpRequest), page, size, payerName, startDate, endDate);
     }
 
     @GetMapping("/{id}/expenses/export")
     public ResponseEntity<byte[]> exportExpenses(
             @PathVariable Long id,
-            jakarta.servlet.http.HttpServletRequest httpRequest
+            jakarta.servlet.http.HttpServletRequest httpRequest,
+            @RequestParam(required = false) String payerName,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        byte[] content = service.exportExpenses(id, currentUser(httpRequest));
+        byte[] content = service.exportExpenses(id, currentUser(httpRequest), payerName, startDate, endDate);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=travel-expenses.xlsx")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
